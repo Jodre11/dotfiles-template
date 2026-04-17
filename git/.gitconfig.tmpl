@@ -1,0 +1,35 @@
+[user]
+	name = __GIT_USER_NAME__
+	email = __GIT_USER_EMAIL__
+	signingkey = __GIT_SIGNING_KEY__
+[core]
+	editor = code
+	filemode = false
+	pager = delta
+[interactive]
+	diffFilter = delta --color-only
+[delta]
+	navigate = true
+	dark = true
+	line-numbers = true
+	hyperlinks = true
+[diff]
+	colorMoved = default
+[merge]
+	conflictstyle = zdiff3
+[color]
+	ui = true
+[gpg]
+	format = ssh
+[commit]
+	gpgsign = true
+[pull]
+	rebase = false
+[filter "strongbox"]
+	clean = strongbox -clean %f
+	smudge = strongbox -smudge %f
+	required = true
+[diff "strongbox"]
+	textconv = strongbox -diff
+[merge "strongbox"]
+	driver = strongbox -merge-file %O -merge-file %A -merge-file %B -merge-file %L -merge-file %P -merge-file %S -merge-file %X -merge-file %Y

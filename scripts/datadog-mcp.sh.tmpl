@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# datadog-mcp.sh — Launch Datadog MCP server with secrets from file.
+# Keys are stored in ~/.config/datadog/env (chmod 600).
+# shellcheck source=/dev/null
+source ~/.config/datadog/env
+export DATADOG_API_KEY="${DD_API_KEY}"
+export DATADOG_APP_KEY="${DD_APP_KEY}"
+export DATADOG_SITE="__DATADOG_SITE__"
+exec npx -y @winor30/mcp-server-datadog
