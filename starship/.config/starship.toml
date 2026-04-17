@@ -1,0 +1,114 @@
+# Starship prompt configuration
+# Migrated from Powerlevel10k lean style (2026-03-25)
+
+# Blank line between prompts for visual separation
+add_newline = true
+
+# Prompt format: two lines
+# Line 1: os_icon  directory  git
+# Line 2: prompt character
+format = """
+$os\
+$directory\
+$git_branch\
+$git_commit\
+$git_state\
+$git_status\
+$fill\
+$cmd_duration\
+$jobs\
+$aws\
+$terraform\
+$kubernetes\
+$time\
+$line_break\
+$character"""
+
+[os]
+disabled = false
+style = "white"
+
+[os.symbols]
+Macos = ""
+
+[directory]
+style = "bold cyan"
+truncation_length = 3
+truncate_to_repo = true
+fish_style_pwd_dir_length = 1
+read_only = " 󰌾"
+
+[git_branch]
+style = "green"
+format = "[$symbol$branch(:$remote_branch)]($style) "
+symbol = " "
+truncation_length = 32
+truncation_symbol = "…"
+
+[git_commit]
+style = "green"
+only_detached = true
+tag_disabled = false
+format = "[$hash$tag]($style) "
+
+[git_state]
+style = "bold red"
+
+[git_status]
+style = ""
+format = '([$all_status$ahead_behind]($style) )'
+ahead = "[⇡${count}](green)"
+behind = "[⇣${count}](green)"
+diverged = "[⇣${behind_count}⇡${ahead_count}](green)"
+conflicted = "[~${count}](red)"
+staged = "[+${count}](yellow)"
+modified = "[!${count}](yellow)"
+untracked = "[?${count}](blue)"
+stashed = "[*${count}](green)"
+
+[fill]
+symbol = " "
+
+[cmd_duration]
+min_time = 3_000
+style = "dark_yellow"
+format = "[$duration]($style) "
+
+[jobs]
+style = "green"
+symbol = "✦"
+
+[aws]
+disabled = false
+style = "bold 208"
+format = "[$symbol($profile )(\\($region\\))]($style) "
+symbol = " "
+[aws.region_aliases]
+[aws.profile_aliases]
+
+[terraform]
+disabled = false
+style = "bold 38"
+format = "[$symbol$workspace]($style) "
+
+[kubernetes]
+disabled = false
+style = "bold 134"
+format = "[$symbol$context(/$namespace)]($style) "
+detect_files = []
+detect_folders = []
+detect_extensions = []
+# Only show when kubectl/helm/etc. are being used
+# Starship doesn't have show-on-command; we detect via context instead
+# Uncomment the next line to always show:
+# contexts = [{ context_pattern = ".*" }]
+
+[time]
+disabled = false
+style = "246"
+format = "[$time]($style)"
+time_format = "%H:%M:%S"
+
+[character]
+success_symbol = "[❯](green)"
+error_symbol = "[❯](red)"
