@@ -1,0 +1,20 @@
+# Font — match existing iTerm2 setup (MesloLGS Nerd Font)
+font-family = MesloLGS Nerd Font Mono
+font-size = 13
+
+# Theme
+theme = dark:Monokai Remastered,light:Monokai Pro Light Sun
+
+# Window
+window-padding-x = 4
+window-padding-y = 4
+window-decoration = true
+macos-titlebar-style = tabs
+
+# Clipboard — needed for Hammerspoon voice-to-text (Cmd+V paste)
+clipboard-read = allow
+clipboard-write = allow
+clipboard-paste-bracketed-safe = true
+
+# Shell integration
+shell-integration = zsh

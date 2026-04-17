@@ -1,0 +1,24 @@
+{
+    "profiles": [
+        {
+            "complex_modifications": {
+                "rules": [
+                    {
+                        "description": "Print Screen push-to-talk",
+                        "manipulators": [
+                            {
+                                "from": { "key_code": "print_screen" },
+                                "to": [{ "key_code": "f20", "repeat": false }],
+                                "to_after_key_up": [{ "key_code": "f19" }],
+                                "type": "basic"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "name": "Default",
+            "selected": true,
+            "virtual_hid_keyboard": { "keyboard_type_v2": "iso" }
+        }
+    ]
+}

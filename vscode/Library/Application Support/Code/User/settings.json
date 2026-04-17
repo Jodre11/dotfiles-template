@@ -1,0 +1,7 @@
+{
+    "editor.fontFamily": "MesloLGS Nerd Font Mono",
+    "editor.fontLigatures": true,
+    "terminal.integrated.fontFamily": "MesloLGS Nerd Font Mono",
+    "terminal.external.osxExec": "Ghostty.app",
+    "github.copilot.nextEditSuggestions.enabled": true
+}

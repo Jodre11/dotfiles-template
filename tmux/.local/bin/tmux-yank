@@ -1,0 +1,14 @@
+#!/bin/bash
+# Copy tmux selection to both macOS pasteboard and Ghostty selection clipboard.
+# Usage: pipe from tmux copy-pipe-and-cancel, passing the client tty as $1.
+#   copy-pipe-and-cancel "tmux-yank #{client_tty}"
+
+data=$(cat)
+tty="${1:-/dev/tty}"
+
+# System clipboard
+echo -n "$data" | pbcopy
+
+# Ghostty selection clipboard via OSC 52 (s = selection, where middle-click reads)
+encoded=$(echo -n "$data" | base64)
+printf '\033]52;s;%s\a' "$encoded" > "$tty"
