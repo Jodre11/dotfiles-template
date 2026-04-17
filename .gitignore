@@ -1,0 +1,32 @@
+# Private config (tracked in private repo, not in template)
+config.env
+
+# Generated files (produced by hydrate.sh from .tmpl templates)
+aws/.aws/config
+docker/.docker/config.json
+git/.gitconfig
+mcp/.mcp.json
+scripts/datadog-mcp.sh
+ssh/.ssh/config
+zsh/.claudeenv
+zsh/.zprofile
+zsh/.zshrc
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+*.swp
+*.swo
+*~
+
+# Stow
+.stow-local-ignore
+
+# Playwright MCP
+.playwright-cli/
+
+# Firefox bookmark backups (generated at runtime)
+firefox/.config/firefox/backups/
