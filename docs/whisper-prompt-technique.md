@@ -67,5 +67,5 @@ top of the file.
 - Keep the prompt under ~200 tokens (roughly 150 words). Longer prompts slow down inference
   without proportional accuracy gains.
 - Refresh the prompt quarterly as your vocabulary evolves.
-- Acronyms work best when used in a sentence: "The CQRS pattern in the internal-project-4 service" rather
-  than just "CQRS internal-project-4".
+- Acronyms work best when used in a sentence: "The CQRS pattern in the OrderService" rather
+  than just "CQRS OrderService".
