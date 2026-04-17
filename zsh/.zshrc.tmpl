@@ -1,0 +1,281 @@
+# p10k instant prompt removed — now using Starship
+
+eval $(thefuck --alias)
+
+# If you come from bash you might have to change your $PATH.
+# export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
+
+# Path to your Oh My Zsh installation.
+export ZSH="$HOME/.oh-my-zsh"
+
+# Set name of the theme to load --- if set to "random", it will
+# load a random theme each time Oh My Zsh is loaded, in which case,
+# to know which specific one was loaded, run: echo $RANDOM_THEME
+# See https://github.com/ohmyzsh/ohmyzsh/wiki/Themes
+# ZSH_THEME disabled — using Starship prompt
+ZSH_THEME=""
+
+# Set list of themes to pick from when loading at random
+# Setting this variable when ZSH_THEME=random will cause zsh to load
+# a theme from this variable instead of looking in $ZSH/themes/
+# If set to an empty array, this variable will have no effect.
+# ZSH_THEME_RANDOM_CANDIDATES=( "robbyrussell" "agnoster" )
+
+# Uncomment the following line to use case-sensitive completion.
+# CASE_SENSITIVE="true"
+
+# Uncomment the following line to use hyphen-insensitive completion.
+# Case-sensitive completion must be off. _ and - will be interchangeable.
+# HYPHEN_INSENSITIVE="true"
+
+# Uncomment one of the following lines to change the auto-update behavior
+# zstyle ':omz:update' mode disabled  # disable automatic updates
+# zstyle ':omz:update' mode auto      # update automatically without asking
+# zstyle ':omz:update' mode reminder  # just remind me to update when it's time
+
+# Uncomment the following line to change how often to auto-update (in days).
+# zstyle ':omz:update' frequency 13
+
+# Uncomment the following line if pasting URLs and other text is messed up.
+# DISABLE_MAGIC_FUNCTIONS="true"
+
+# Uncomment the following line to disable colors in ls.
+# DISABLE_LS_COLORS="true"
+
+# Uncomment the following line to disable auto-setting terminal title.
+# DISABLE_AUTO_TITLE="true"
+
+# Uncomment the following line to enable command auto-correction.
+# ENABLE_CORRECTION="true"
+
+# Uncomment the following line to display red dots whilst waiting for completion.
+# You can also set it to another string to have that shown instead of the default red dots.
+# e.g. COMPLETION_WAITING_DOTS="%F{yellow}waiting...%f"
+# Caution: this setting can cause issues with multiline prompts in zsh < 5.7.1 (see #5765)
+# COMPLETION_WAITING_DOTS="true"
+
+# Uncomment the following line if you want to disable marking untracked files
+# under VCS as dirty. This makes repository status check for large repositories
+# much, much faster.
+# DISABLE_UNTRACKED_FILES_DIRTY="true"
+
+# Uncomment the following line if you want to change the command execution time
+# stamp shown in the history command output.
+# You can set one of the optional three formats:
+# "mm/dd/yyyy"|"dd.mm.yyyy"|"yyyy-mm-dd"
+# or set a custom format using the strftime function format specifications,
+# see 'man strftime' for details.
+# HIST_STAMPS="mm/dd/yyyy"
+
+# Would you like to use another custom folder than $ZSH/custom?
+# ZSH_CUSTOM=/path/to/new-custom-folder
+
+# Which plugins would you like to load?
+# Standard plugins can be found in $ZSH/plugins/
+# Custom plugins may be added to $ZSH_CUSTOM/plugins/
+# Example format: plugins=(rails git textmate ruby lighthouse)
+# Add wisely, as too many plugins slow down shell startup.
+plugins=(
+  git
+  zsh-autosuggestions
+  zsh-syntax-highlighting
+  z
+  history-substring-search
+  aws
+  web-search
+  extract
+  sudo
+  colored-man-pages
+  dotnet
+  terraform
+  fzf
+)
+
+source $ZSH/oh-my-zsh.sh
+
+# Fixterms/CSI u key bindings for Ghostty (bare shell, no tmux).
+# Ghostty sends CSI u or xterm-modifyOtherKeys sequences for modified keys;
+# zsh has no native CSI u support so we bind them explicitly.
+# Inside tmux, extended-keys handles the translation instead.
+_zle_insert_newline() { LBUFFER+=$'\n'; }
+zle -N _zle_insert_newline
+bindkey '\e[27;2;13~'  _zle_insert_newline  # Shift+Enter  → newline (continuation)
+bindkey '\e[27;5;13~'  accept-line          # Ctrl+Enter   → submit
+bindkey '\e[27;2;127~' backward-delete-char # Shift+Backspace
+bindkey '\e[27;5;127~' backward-delete-char # Ctrl+Backspace
+
+# User configuration
+
+# export MANPATH="/usr/local/man:$MANPATH"
+
+# You may need to manually set your language environment
+export LANG=en_GB.UTF-8
+
+# Preferred editor for local and remote sessions
+# if [[ -n $SSH_CONNECTION ]]; then
+#   export EDITOR='vim'
+# else
+#   export EDITOR='nvim'
+# fi
+
+# Compilation flags
+# export ARCHFLAGS="-arch $(uname -m)"
+
+# Set personal aliases, overriding those provided by Oh My Zsh libs,
+# plugins, and themes. Aliases can be placed here, though Oh My Zsh
+# users are encouraged to define aliases within a top-level file in
+# the $ZSH_CUSTOM folder, with .zsh extension. Examples:
+# - $ZSH_CUSTOM/aliases.zsh
+# - $ZSH_CUSTOM/macos.zsh
+# For a full list of active aliases, run `alias`.
+#
+# Example aliases
+# alias zshconfig="mate ~/.zshrc"
+# alias ohmyzsh="mate ~/.oh-my-zsh"
+
+# p10k removed — ~/.p10k.zsh kept as backup
+source ~/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
+# Bitwarden SSH agent (desktop app must be running and unlocked)
+export SSH_AUTH_SOCK="__SSH_AGENT_SOCK__"
+
+export DOTNET_ROOT=/usr/local/share/dotnet
+export PATH=$PATH:$DOTNET_ROOT/tools:$HOME/.dotnet/tools
+# NuGet PAT via envchain (configure NUGET_NAMESPACE in config.env)
+if [[ -n "__NUGET_NAMESPACE__" ]]; then
+    export $(envchain __NUGET_NAMESPACE__ env | grep _NUGET_PAT) 2>/dev/null
+fi
+export AWS_REGION='eu-west-1'
+export PATH="$(brew --prefix llvm)/bin:$PATH"
+
+# The following lines have been added by Docker Desktop to enable Docker CLI completions.
+fpath=($HOME/.docker/completions $fpath)
+autoload -Uz compinit
+compinit
+# End of Docker CLI completions
+
+export PATH=/opt/homebrew/opt/python@3.14/libexec/bin:$PATH
+
+# Added by LocalStack installer
+source $HOME/.localstack/localstack_setup.sh
+
+# Added by get-aspire-cli.sh
+export PATH="$HOME/.aspire/bin:$PATH"
+
+[ -f "$HOME/.claudeenv" ] && source "$HOME/.claudeenv"
+
+# Always run Claude Code inside tmux for detach/reattach support.
+# Claude sets the terminal title via --name or /name; a tmux hook
+# syncs the pane title to the tmux session name automatically.
+# Session-level hooks survive renames because tmux binds them to
+# the session object, not the name.
+claude() {
+    # Non-session subcommands and flags — pass straight through.
+    local pass_through=(
+        -v --version -h --help
+        agents auth auto-mode doctor install
+        mcp plugin plugins setup-token update upgrade
+    )
+    for arg in "${pass_through[@]}"; do
+        if [[ "$1" == "$arg" ]]; then
+            command claude "$@"
+            return
+        fi
+    done
+
+    # Pre-flight: ensure SSO token is valid before launching.
+    # Avoids the AWS SDK hang on expired tokens (Claude Code issue #28032).
+    if [[ -x "$HOME/.claude/scripts/aws-sso-preflight.sh" ]]; then
+        "$HOME/.claude/scripts/aws-sso-preflight.sh"
+    fi
+
+    local session="claude-$(date +%H%M)"
+    # Deduplicate if launched in the same minute
+    if tmux has-session -t "$session" 2>/dev/null; then
+        session="${session}-$$"
+    fi
+    # Use a wrapper script inside the pane to set up the hook before
+    # launching claude. Avoids the race between destroy-unattached
+    # and detached session creation.
+    tmux new-session -s "$session" \
+        "tmux set-hook pane-title-changed \"run-shell '~/.claude/hooks/tmux-sanitise-name.sh \\\"#{pane_title}\\\" \\\"#{session_id}\\\"'\"; command claude $*"
+}
+# Launch Claude Code with a personal Pro subscription (no Bedrock).
+# Strips Bedrock env vars so Claude falls back to OAuth login.
+# Wraps in tmux like claude() but skips the SSO preflight.
+claude-personal() {
+    local strip=(
+        -u CLAUDE_CODE_USE_BEDROCK
+        -u ANTHROPIC_MODEL
+        -u ANTHROPIC_DEFAULT_HAIKU_MODEL
+        -u ANTHROPIC_DEFAULT_SONNET_MODEL
+        -u ANTHROPIC_DEFAULT_OPUS_MODEL
+        -u ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION
+        -u CLAUDE_CODE_MAX_OUTPUT_TOKENS
+        -u AWS_PROFILE
+        -u AWS_REGION
+    )
+
+    # Non-session subcommands — pass straight through (no tmux needed, but
+    # still strip Bedrock env vars so auth/doctor/etc. target personal account).
+    local pass_through=(
+        -v --version -h --help
+        agents auth auto-mode doctor install
+        mcp plugin plugins setup-token update upgrade
+    )
+    for arg in "${pass_through[@]}"; do
+        if [[ "$1" == "$arg" ]]; then
+            env "${strip[@]}" command claude "$@"
+            return
+        fi
+    done
+
+    # Pre-authenticate outside tmux so the browser OAuth redirect works.
+    if ! env "${strip[@]}" command claude auth status &>/dev/null; then
+        echo "Personal account authentication required..."
+        env "${strip[@]}" command claude auth login || return 1
+    fi
+
+    local session="personal-$(date +%H%M)"
+    if tmux has-session -t "$session" 2>/dev/null; then
+        session="${session}-$$"
+    fi
+    tmux new-session -s "$session" \
+        "tmux set-hook pane-title-changed \"run-shell '~/.claude/hooks/tmux-sanitise-name.sh \\\"#{pane_title}\\\" \\\"#{session_id}\\\"'\"; env ${strip[*]} command claude $*"
+}
+
+alias cat='bat --paging=never'
+# Upgrade all Homebrew packages, then trigger Gatekeeper approval for any
+# quarantined cask apps. macOS Sequoia blocks programmatic quarantine removal;
+# opening from Terminal presents an approvable dialogue instead of Finder's
+# dead-end "Not Opened" prompt.
+bup() {
+    HOMEBREW_ACCEPT_EULA=Y brew upgrade --greedy-latest
+    local app
+    for app in /Applications/*.app; do
+        [[ -d "$app" ]] || continue
+        if xattr -p com.apple.quarantine "$app" &>/dev/null; then
+            echo "Opening quarantined app for approval: ${app:t}"
+            open "$app"
+        fi
+    done
+}
+alias tls='tmux ls 2>/dev/null'
+alias tk='tmux kill-session -a'
+ta() {
+    tmux attach -t "$@"
+}
+_ta() {
+    local -a sessions
+    sessions=(${(f)"$(tmux list-sessions -F '#S' 2>/dev/null)"})
+    compadd -a sessions
+}
+compdef _ta ta
+
+# fzf configuration (shell integration handled by OMZ fzf plugin)
+export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
+export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+export FZF_ALT_C_COMMAND='fd --type d --hidden --follow --exclude .git'
+
+# Starship prompt (replaces p10k)
+eval "$(starship init zsh)"
