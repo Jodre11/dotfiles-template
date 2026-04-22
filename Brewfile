@@ -80,7 +80,6 @@ brew "microsoft/mssql-release/mssql-tools18"
 
 # --- Cask apps ---
 cask "bitwarden"
-cask "caffeine"
 cask "docker-desktop"
 cask "dotnet-sdk"
 cask "dotnet-sdk@8"
@@ -88,6 +87,7 @@ cask "firefox"
 cask "font-fira-code-nerd-font"
 cask "font-meslo-lg-nerd-font"
 cask "ghostty"
+cask "gitify"                   # GitHub notifications menubar app
 cask "google-chrome"
 cask "hammerspoon"
 cask "inkscape"
