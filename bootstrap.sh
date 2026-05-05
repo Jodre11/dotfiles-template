@@ -116,7 +116,7 @@ mkdir -p "$HOME/.local/share/dictation"
 # ---------- Rust toolchain ----------
 if ! command -v rustup &>/dev/null; then
     echo "Installing Rust toolchain via rustup..."
-    RUSTUP_INIT="/tmp/rustup-init.sh"
+    RUSTUP_INIT="$(mktemp /tmp/rustup-init.XXXXXXXXXX)"
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o "$RUSTUP_INIT"
     chmod +x "$RUSTUP_INIT"
     sh "$RUSTUP_INIT" -y
