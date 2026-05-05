@@ -63,4 +63,5 @@ paths = [
     '''.gitleaks.toml''',
     '''config.env.example''',
     '''docs/whisper-prompt-technique.md''',
+    '''tests/test-pattern-sync.sh''',
 ]

@@ -62,7 +62,7 @@ for p in "${PATTERNS[@]}"; do
 done
 
 # Scan staged file contents (not filenames) for matches
-STAGED_DIFF=$(git diff --cached --diff-filter=ACMR -U0 -- . ':!.githooks/pre-commit' ':!.gitleaks.toml' ':!README.md' ':!config.env.example' ':!docs/whisper-prompt-technique.md' || true)
+STAGED_DIFF=$(git diff --cached --diff-filter=ACMR -U0 -- . ':!.githooks/pre-commit' ':!.gitleaks.toml' ':!config.env.example' ':!docs/whisper-prompt-technique.md' ':!tests/test-pattern-sync.sh' || true)
 
 if [ -n "$STAGED_DIFF" ]; then
     MATCHES=$(echo "$STAGED_DIFF" | grep -inE "$COMBINED" || true)
