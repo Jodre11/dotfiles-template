@@ -17,6 +17,8 @@ configure machine-specific Claude Code settings.
 - Keep `bootstrap.sh` idempotent — every command must be safe to re-run
 - When adding a new config file, create a new Stow package following the existing
   pattern rather than adding it to an unrelated package
+- Follow the security invariants documented in `SECURITY.md`
+- All shell scripts must pass `shellcheck --severity=warning`
 
 ## Template Strategy
 
