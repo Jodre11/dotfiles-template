@@ -145,7 +145,7 @@ export PATH=$PATH:$DOTNET_ROOT/tools:$HOME/.dotnet/tools
 if [[ -n "__NUGET_NAMESPACE__" ]]; then
     export $(envchain __NUGET_NAMESPACE__ env | grep _NUGET_PAT) 2>/dev/null
 fi
-export AWS_REGION='eu-west-1'
+export AWS_REGION='__AWS_REGION__'
 export PATH="$(brew --prefix llvm)/bin:$PATH"
 
 # The following lines have been added by Docker Desktop to enable Docker CLI completions.

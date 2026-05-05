@@ -26,4 +26,8 @@ if [ ${#names} -gt 120 ]; then
     names="${names:0:117}..."
 fi
 
+# Escape characters significant in AppleScript strings
+names="${names//\\/\\\\}"
+names="${names//\"/\\\"}"
+
 osascript -e "display notification \"$names\" with title \"Homebrew: $count update(s) available\" subtitle \"Run: bup\""
