@@ -5,7 +5,7 @@ title = "dotfiles-template gitleaks config"
 [[rules]]
 id = "org-aws-account-id"
 description = "Organisation AWS account ID"
-regex = '''(123456789012|123456789012|123456789012|123456789012|123456789012|123456789012)'''
+regex = '''(123456789012)'''
 tags = ["corporate", "aws"]
 
 [[rules]]
@@ -23,7 +23,7 @@ tags = ["corporate", "aws"]
 [[rules]]
 id = "org-bedrock-arn-fragment"
 description = "Bedrock inference profile ARN fragment"
-regex = '''(your-profile-id|your-profile-id|your-profile-id)'''
+regex = '''(your-profile-id)'''
 tags = ["corporate", "aws"]
 
 [[rules]]
@@ -35,12 +35,12 @@ tags = ["corporate"]
 [[rules]]
 id = "org-name"
 description = "Organisation references"
-regex = '''(?i)(yourorg|yourorg|your-company\.com|your-stage\.com|your-dev-server|your-prod-server|your-company)'''
+regex = '''(?i)(yourorg|your-company\.com|your-stage\.com|your-dev-server|your-prod-server|your-company)'''
 tags = ["corporate"]
 
 [[rules]]
 id = "org-internal-project"
-description = "Internal project names"
+description = "Organisation internal project names"
 regex = '''(?i)(internal-project-1|internal-project-2|internal-project-3|internal-project-4|YOUR_NUGET_PAT|internal-project-5)'''
 tags = ["corporate"]
 
