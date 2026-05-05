@@ -21,7 +21,7 @@ defaults write "$DOMAIN" SyncDisabled -bool true
 # --- Telemetry & reporting ------------------------------------------------
 defaults write "$DOMAIN" MetricsReportingEnabled -bool false
 defaults write "$DOMAIN" UrlKeyedAnonymizedDataCollectionEnabled -bool false
-defaults write "$DOMAIN" SafeBrowsingProtectionLevel -int 0
+defaults write "$DOMAIN" SafeBrowsingProtectionLevel -int 1
 
 # --- Network chatter ------------------------------------------------------
 # 2 = never preconnect or prefetch

@@ -23,7 +23,7 @@ fi
 # ---------- Homebrew ----------
 if ! command -v brew &>/dev/null; then
     echo "Installing Homebrew..."
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/540da2ca91271886910572df3a50332540ca84e4/install.sh)"
     eval "$(/opt/homebrew/bin/brew shellenv)"
 fi
 
@@ -80,7 +80,7 @@ fi
 # ---------- Oh My Zsh ----------
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
     echo "Installing Oh My Zsh..."
-    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/e64912e0c1eaa32181c3b5e5e4bf8042ecd0e8a7/tools/install.sh)" "" --unattended
 fi
 
 # ---------- zsh-syntax-highlighting (manual clone used by .zshrc) ----------
