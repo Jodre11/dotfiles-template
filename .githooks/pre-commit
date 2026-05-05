@@ -46,7 +46,7 @@ PATTERNS=(
     '@your-company\.com'
     '@your-email\.co\.uk'
     'your\.name'
-    'Users/yourusername/'
+    '/Users/yourusername/'
 )
 
 # Build a combined regex from the pattern array
