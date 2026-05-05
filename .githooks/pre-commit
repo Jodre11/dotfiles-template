@@ -13,19 +13,12 @@ fi
 PATTERNS=(
     # AWS account IDs
     '123456789012'
-    '123456789012'
-    '123456789012'
-    '123456789012'
-    '123456789012'
-    '123456789012'
 
     # SSO / infrastructure
     'yourorg\.awsapps\.com'
     '[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com'
 
     # Bedrock inference profile ARN fragments
-    'your-profile-id'
-    'your-profile-id'
     'your-profile-id'
 
     # SSH private key markers
@@ -35,7 +28,6 @@ PATTERNS=(
     'DC=your-domain'
 
     # Organisation (case-insensitive handled by grep -i below)
-    'yourorg'
     'yourorg'
     'your-company\.com'
     'your-stage\.com'
