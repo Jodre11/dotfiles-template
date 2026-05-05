@@ -87,13 +87,13 @@ fi
 if [ ! -d "$HOME/.zsh/zsh-syntax-highlighting" ]; then
     echo "Installing zsh-syntax-highlighting..."
     mkdir -p "$HOME/.zsh"
-    git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "$HOME/.zsh/zsh-syntax-highlighting"
+    git clone --branch 0.8.0 --depth 1 https://github.com/zsh-users/zsh-syntax-highlighting.git "$HOME/.zsh/zsh-syntax-highlighting"
 fi
 
 # ---------- zsh-autosuggestions (Oh My Zsh custom plugin) ----------
 if [ ! -d "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-autosuggestions" ]; then
     echo "Installing zsh-autosuggestions..."
-    git clone https://github.com/zsh-users/zsh-autosuggestions "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-autosuggestions"
+    git clone --branch v0.7.1 --depth 1 https://github.com/zsh-users/zsh-autosuggestions "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-autosuggestions"
 fi
 
 # ---------- Whisper model ----------
@@ -116,7 +116,11 @@ mkdir -p "$HOME/.local/share/dictation"
 # ---------- Rust toolchain ----------
 if ! command -v rustup &>/dev/null; then
     echo "Installing Rust toolchain via rustup..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    RUSTUP_INIT="/tmp/rustup-init.sh"
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o "$RUSTUP_INIT"
+    chmod +x "$RUSTUP_INIT"
+    sh "$RUSTUP_INIT" -y
+    rm -f "$RUSTUP_INIT"
     . "$HOME/.cargo/env"
 fi
 
