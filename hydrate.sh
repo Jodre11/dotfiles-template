@@ -57,6 +57,7 @@ hydrate_simple() {
     # aws
     content="${content//__SSO_START_URL__/${SSO_START_URL:-}}"
     content="${content//__SSO_REGION__/${SSO_REGION:-}}"
+    content="${content//__AWS_REGION__/${AWS_REGION:-}}"
 
     # whisper
     content="${content//__WHISPER_PROMPT__/${WHISPER_PROMPT:-}}"
