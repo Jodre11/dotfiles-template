@@ -1,0 +1,7 @@
+# Follow sourced files (resolve source directives)
+external-sources=true
+
+# Suppress SC1091: "Not following: <file> was not specified as input"
+# Our scripts source config.env and lib.sh at runtime; paths are correct but
+# shellcheck cannot resolve them statically.
+disable=SC1091

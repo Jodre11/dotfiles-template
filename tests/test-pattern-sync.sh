@@ -19,7 +19,6 @@ while IFS= read -r line; do
         current_id="${BASH_REMATCH[1]}"
     fi
     if [[ "$line" =~ ^regex\ =\ \'\'\'(.+)\'\'\' ]]; then
-        regex="${BASH_REMATCH[1]}"
         # Check that at least part of the regex concept appears in the pre-commit hook.
         # We extract a representative literal or structural fragment to search for.
         case "$current_id" in
