@@ -52,6 +52,10 @@ brew "starship"                 # Cross-shell prompt
 brew "thefuck"                  # Command correction
 brew "tmux"
 
+# --- Code review tooling ---
+brew "ruff"                     # Python linter (used by code-review:ruff-reviewer)
+brew "trivy"                    # IaC security scanner (used by code-review:trivy-reviewer)
+
 # --- Language servers ---
 brew "jdtls"                    # Java
 brew "kotlin-language-server"
