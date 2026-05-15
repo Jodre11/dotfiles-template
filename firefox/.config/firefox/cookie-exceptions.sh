@@ -9,13 +9,28 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib.sh"
 
-# Sites to persist cookies for (origins must include scheme)
+# Sites to persist cookies for. Each entry is a full origin (scheme + host).
+# Firefox has no wildcard support in moz_perms — subdomains need separate
+# entries (e.g. github.com and gist.github.com both listed below).
 COOKIE_ORIGINS=(
-    "https://github.com"
-    "https://claude.ai"
+    # Accounts / SSO
     "https://accounts.google.com"
     "https://signin.aws.amazon.com"
     "https://vault.bitwarden.com"
+
+    # Dev / reference
+    "https://github.com"
+    "https://gist.github.com"
+    "https://stackoverflow.com"
+    "https://claude.ai"
+
+    # Cloud consoles
+    "https://console.aws.amazon.com"
+    "https://portal.azure.com"
+    "https://console.cloud.google.com"
+
+    # Comms / collab
+    "https://teams.microsoft.com"
 )
 
 # --- Main ---------------------------------------------------------------------
@@ -34,30 +49,28 @@ if pgrep -xi "firefox" > /dev/null 2>&1; then
     exit 1
 fi
 
+# Validate every origin starts with http:// or https:// before touching the DB
+for origin in "${COOKIE_ORIGINS[@]}"; do
+    if [[ ! "$origin" =~ ^https?:// ]]; then
+        echo "Error: invalid origin '$origin' (must start with http:// or https://)" >&2
+        exit 1
+    fi
+done
+
 NOW_MS="$(date +%s)000"
 
-# Batch all inserts into a single sqlite3 session (skip existing entries)
-sqlite3 "$PERMS_DB" <<SQL
+# Build a single sqlite3 batch from the array (skip entries that already exist)
+{
+    echo "BEGIN TRANSACTION;"
+    for origin in "${COOKIE_ORIGINS[@]}"; do
+        cat <<SQL
 INSERT INTO moz_perms (origin, type, permission, expireType, expireTime, modificationTime)
-SELECT 'https://github.com', 'cookie', 1, 0, 0, $NOW_MS
-WHERE NOT EXISTS (SELECT 1 FROM moz_perms WHERE origin='https://github.com' AND type='cookie');
-
-INSERT INTO moz_perms (origin, type, permission, expireType, expireTime, modificationTime)
-SELECT 'https://claude.ai', 'cookie', 1, 0, 0, $NOW_MS
-WHERE NOT EXISTS (SELECT 1 FROM moz_perms WHERE origin='https://claude.ai' AND type='cookie');
-
-INSERT INTO moz_perms (origin, type, permission, expireType, expireTime, modificationTime)
-SELECT 'https://accounts.google.com', 'cookie', 1, 0, 0, $NOW_MS
-WHERE NOT EXISTS (SELECT 1 FROM moz_perms WHERE origin='https://accounts.google.com' AND type='cookie');
-
-INSERT INTO moz_perms (origin, type, permission, expireType, expireTime, modificationTime)
-SELECT 'https://signin.aws.amazon.com', 'cookie', 1, 0, 0, $NOW_MS
-WHERE NOT EXISTS (SELECT 1 FROM moz_perms WHERE origin='https://signin.aws.amazon.com' AND type='cookie');
-
-INSERT INTO moz_perms (origin, type, permission, expireType, expireTime, modificationTime)
-SELECT 'https://vault.bitwarden.com', 'cookie', 1, 0, 0, $NOW_MS
-WHERE NOT EXISTS (SELECT 1 FROM moz_perms WHERE origin='https://vault.bitwarden.com' AND type='cookie');
+SELECT '$origin', 'cookie', 1, 0, 0, $NOW_MS
+WHERE NOT EXISTS (SELECT 1 FROM moz_perms WHERE origin='$origin' AND type='cookie');
 SQL
+    done
+    echo "COMMIT;"
+} | sqlite3 "$PERMS_DB"
 
 # Report results per origin
 for origin in "${COOKIE_ORIGINS[@]}"; do
