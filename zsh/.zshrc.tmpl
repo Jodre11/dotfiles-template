@@ -198,7 +198,7 @@ claude() {
     # launching claude. Avoids the race between destroy-unattached
     # and detached session creation.
     tmux new-session -s "$session" \
-        "tmux set-hook pane-title-changed \"run-shell '~/.claude/hooks/tmux-sanitise-name.sh \\\"#{pane_title}\\\" \\\"#{session_id}\\\"'\"; command claude $*"
+        "tmux set-hook pane-title-changed \"run-shell '~/.claude/hooks/tmux-sanitise-name.sh \\\"#{pane_title}\\\" \\\"#{session_id}\\\"'\"; command claude --exclude-dynamic-system-prompt-sections $*"
 }
 # Launch Claude Code with a personal Pro subscription (no Bedrock).
 # Strips Bedrock env vars so Claude falls back to OAuth login.
@@ -241,7 +241,7 @@ claude-personal() {
         session="${session}-$$"
     fi
     tmux new-session -s "$session" \
-        "tmux set-hook pane-title-changed \"run-shell '~/.claude/hooks/tmux-sanitise-name.sh \\\"#{pane_title}\\\" \\\"#{session_id}\\\"'\"; env ${strip[*]} command claude $*"
+        "tmux set-hook pane-title-changed \"run-shell '~/.claude/hooks/tmux-sanitise-name.sh \\\"#{pane_title}\\\" \\\"#{session_id}\\\"'\"; env ${strip[*]} command claude --exclude-dynamic-system-prompt-sections $*"
 }
 
 alias cat='bat --paging=never'
