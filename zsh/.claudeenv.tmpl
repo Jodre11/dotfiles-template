@@ -39,3 +39,6 @@ export ENABLE_PROMPT_CACHING_1H=1
 
 # Strip AWS/Anthropic credentials from Bash tool, hooks, and MCP subprocesses
 export CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1
+
+# Auto-update Claude Code on session start (npm/Homebrew/etc., based on installation method)
+export CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE=1
