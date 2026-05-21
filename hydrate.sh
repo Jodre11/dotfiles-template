@@ -81,17 +81,22 @@ hydrate_aws_config() {
     content=$(cat "$tmpl")
     content="${content//__SSO_START_URL__/${SSO_START_URL:-}}"
     content="${content//__SSO_REGION__/${SSO_REGION:-}}"
+    content="${content//__SSO_SESSION_NAME__/${SSO_SESSION_NAME:-sso}}"
 
-    # Append profiles from AWS_PROFILES array
+    # Append profiles from AWS_PROFILES array.
+    # Region is optional — leave the field empty (e.g. `name|123|Role|`) to
+    # omit the `region = ...` line for that profile.
     if [[ ${#AWS_PROFILES[@]} -gt 0 ]]; then
         content="$content"$'\n'
         for entry in "${AWS_PROFILES[@]}"; do
             IFS='|' read -r name account role region <<< "$entry"
             content="$content"$'\n'"[profile $name]"
-            content="$content"$'\n'"sso_session = sso"
+            content="$content"$'\n'"sso_session = ${SSO_SESSION_NAME:-sso}"
             content="$content"$'\n'"sso_account_id = $account"
             content="$content"$'\n'"sso_role_name = $role"
-            content="$content"$'\n'"region = $region"
+            if [[ -n "$region" ]]; then
+                content="$content"$'\n'"region = $region"
+            fi
             content="$content"$'\n'
         done
     fi
