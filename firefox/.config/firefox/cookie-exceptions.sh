@@ -16,6 +16,7 @@ COOKIE_ORIGINS=(
     # Accounts / SSO
     "https://accounts.google.com"
     "https://signin.aws.amazon.com"
+    "https://login.microsoftonline.com"
     "https://vault.bitwarden.com"
 
     # Dev / reference
