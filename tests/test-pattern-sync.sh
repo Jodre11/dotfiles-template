@@ -82,24 +82,30 @@ while IFS= read -r line; do
 done < "$GITLEAKS"
 
 # --- Check 2: Pre-commit patterns must not use PCRE-only syntax ---
+#
+# Scans every `*_PATTERNS=(` array in the hook (originally one PATTERNS array;
+# split into ALWAYS_PATTERNS and IDENTITY_PATTERNS in the memory-dir-exemption
+# upgrade). Treats any future array following the `<NAME>_PATTERNS=(` /
+# closing `)` convention the same way.
 
-echo "Checking pre-commit patterns use ERE-compatible syntax..."
+echo "Checking pre-commit patterns use awk-compatible syntax..."
 
-# Extract patterns from the PATTERNS array
 in_array=0
 while IFS= read -r line; do
-    if [[ "$line" =~ ^PATTERNS=\( ]]; then
+    if [[ "$line" =~ ^[A-Z_]+_PATTERNS=\( ]]; then
         in_array=1
         continue
     fi
     if [[ $in_array -eq 1 && "$line" =~ ^\) ]]; then
-        break
+        in_array=0
+        continue
     fi
     if [[ $in_array -eq 1 ]]; then
         # Skip comments and blank lines
         stripped="${line#"${line%%[![:space:]]*}"}"
         [[ -z "$stripped" || "$stripped" == \#* ]] && continue
-        # Check for common PCRE-only constructs
+        # Check for common PCRE-only constructs (awk's regex engine is roughly
+        # ERE; \s, \d, \w, \b, and non-capturing groups (?:...) all fail).
         if [[ "$stripped" =~ \\s|\\d|\\w|\\b|\(\?: ]]; then
             echo "  FAIL: PCRE syntax in pre-commit pattern: $stripped"
             ((ERRORS++))
