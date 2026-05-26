@@ -42,3 +42,7 @@ export CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1
 
 # Auto-update Claude Code on session start (npm/Homebrew/etc., based on installation method)
 export CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE=1
+
+# Opt into the deterministic multi-agent Workflow tool (gated; also requires server-side
+# tengu_workflows_enabled flag, so may be a no-op on Bedrock until enabled there)
+export CLAUDE_CODE_WORKFLOWS=1
