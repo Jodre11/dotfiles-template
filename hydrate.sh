@@ -35,9 +35,6 @@ hydrate_simple() {
     content="${content//__GIT_USER_EMAIL__/${GIT_USER_EMAIL:-}}"
     content="${content//__GIT_SIGNING_KEY__/${GIT_SIGNING_KEY:-}}"
 
-    # docker
-    content="${content//__ECR_REGISTRY__/${ECR_REGISTRY:-}}"
-
     # ssh / zsh
     content="${content//__SSH_AGENT_SOCK__/${SSH_AGENT_SOCK:-}}"
     content="${content//__NUGET_NAMESPACE__/${NUGET_NAMESPACE:-}}"
