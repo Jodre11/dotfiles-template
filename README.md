@@ -82,7 +82,7 @@ template repo.
 | Template | Generated | Key Placeholders |
 |---|---|---|
 | `aws/.aws/config.tmpl` | `aws/.aws/config` | `__SSO_START_URL__`, profiles from array |
-| `docker/.docker/config.json.tmpl` | `docker/.docker/config.json` | `__ECR_REGISTRY__` |
+| `docker/.docker/config.json.tmpl` | `docker/.docker/config.json` | (no placeholders — `auths: {}` populated at runtime) |
 | `git/.gitconfig.tmpl` | `git/.gitconfig` | `__GIT_USER_NAME__`, `__GIT_USER_EMAIL__`, `__GIT_SIGNING_KEY__` |
 | `mcp/.mcp.json.tmpl` | `mcp/.mcp.json` | `__DATADOG_MCP_SCRIPT__` |
 | `scripts/datadog-mcp.sh.tmpl` | `scripts/datadog-mcp.sh` | `__DATADOG_SITE__` |
