@@ -194,11 +194,8 @@ claude() {
     if tmux has-session -t "$session" 2>/dev/null; then
         session="${session}-$$"
     fi
-    # Use a wrapper script inside the pane to set up the hook before
-    # launching claude. Avoids the race between destroy-unattached
-    # and detached session creation.
     tmux new-session -s "$session" \
-        "tmux set-hook pane-title-changed \"run-shell '~/.claude/hooks/tmux-sanitise-name.sh \\\"#{pane_title}\\\" \\\"#{session_id}\\\"'\"; command claude --exclude-dynamic-system-prompt-sections ${(q)@}"
+        "source ~/.claudeenv; exec command claude --exclude-dynamic-system-prompt-sections ${(q)@}"
 }
 # Launch Claude Code with a personal Pro subscription (no Bedrock).
 # Strips Bedrock env vars so Claude falls back to OAuth login.
@@ -241,7 +238,7 @@ claude-personal() {
         session="${session}-$$"
     fi
     tmux new-session -s "$session" \
-        "tmux set-hook pane-title-changed \"run-shell '~/.claude/hooks/tmux-sanitise-name.sh \\\"#{pane_title}\\\" \\\"#{session_id}\\\"'\"; env ${strip[*]} command claude --exclude-dynamic-system-prompt-sections ${(q)@}"
+        "tmux set-option status-style 'bg=#eda6c2,fg=black'; unset CLAUDE_CODE_USE_BEDROCK ANTHROPIC_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION CLAUDE_CODE_MAX_OUTPUT_TOKENS AWS_PROFILE AWS_REGION; exec command claude --exclude-dynamic-system-prompt-sections ${(q)@}"
 }
 
 alias cat='bat --paging=never'
