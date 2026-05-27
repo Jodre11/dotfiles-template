@@ -189,11 +189,15 @@ claude() {
         "$HOME/.claude/scripts/aws-sso-preflight.sh"
     fi
 
-    local session="claude-$(date +%H%M)"
-    # Deduplicate if launched in the same minute
-    if tmux has-session -t "$session" 2>/dev/null; then
-        session="${session}-$$"
-    fi
+    # Slug is c-<abbrev>-<4hex>, derived from the cwd basename + a random
+    # 4-hex suffix. session-init.sh reads the tmux name back and uses it as
+    # the Claude sessionTitle, so tmux name and Claude title match exactly.
+    local session
+    session=$("$HOME/.claude/scripts/derive-claude-slug.sh")
+    # 16-bit collision space — vanishingly rare, but re-roll if hit.
+    while tmux has-session -t "$session" 2>/dev/null; do
+        session=$("$HOME/.claude/scripts/derive-claude-slug.sh")
+    done
     tmux new-session -s "$session" \
         "source ~/.claudeenv; exec command claude --exclude-dynamic-system-prompt-sections ${(q)@}"
 }
@@ -233,10 +237,13 @@ claude-personal() {
         env "${strip[@]}" command claude auth login || return 1
     fi
 
-    local session="personal-$(date +%H%M)"
-    if tmux has-session -t "$session" 2>/dev/null; then
-        session="${session}-$$"
-    fi
+    # Personal-account variant uses prefix `p` so it's distinguishable from
+    # the work `c-` sessions in tmux.
+    local session
+    session=$("$HOME/.claude/scripts/derive-claude-slug.sh" "" p)
+    while tmux has-session -t "$session" 2>/dev/null; do
+        session=$("$HOME/.claude/scripts/derive-claude-slug.sh" "" p)
+    done
     tmux new-session -s "$session" \
         "tmux set-option status-style 'bg=#eda6c2,fg=black'; unset CLAUDE_CODE_USE_BEDROCK ANTHROPIC_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION CLAUDE_CODE_MAX_OUTPUT_TOKENS AWS_PROFILE AWS_REGION; exec command claude --exclude-dynamic-system-prompt-sections ${(q)@}"
 }
