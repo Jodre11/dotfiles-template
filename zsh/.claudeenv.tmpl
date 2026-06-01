@@ -50,3 +50,7 @@ export CLAUDE_CODE_WORKFLOWS=1
 # Enable Auto mode on Bedrock/Vertex/Foundry (Opus 4.7 and 4.8 only). Added in Claude Code
 # v2.1.158 to close the parity gap with first-party. Auto routes effort dynamically per turn.
 export CLAUDE_CODE_ENABLE_AUTO_MODE=1
+
+# Enable the (currently undocumented) LSP tool surface. Required by any LSP plugin
+# (e.g. the C# Roslyn proxy) to actually expose findReferences/goToDefinition/etc to Claude.
+export ENABLE_LSP_TOOL=1
