@@ -46,3 +46,7 @@ export CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE=1
 # Opt into the deterministic multi-agent Workflow tool (gated; also requires server-side
 # tengu_workflows_enabled flag, so may be a no-op on Bedrock until enabled there)
 export CLAUDE_CODE_WORKFLOWS=1
+
+# Enable Auto mode on Bedrock/Vertex/Foundry (Opus 4.7 and 4.8 only). Added in Claude Code
+# v2.1.158 to close the parity gap with first-party. Auto routes effort dynamically per turn.
+export CLAUDE_CODE_ENABLE_AUTO_MODE=1
