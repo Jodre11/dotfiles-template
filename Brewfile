@@ -13,7 +13,9 @@ brew "fd"
 brew "fzf"
 brew "jq"                       # JSON processor (used by Claude Code hooks)
 brew "ninja"
+brew "parallel"                 # Execute jobs in parallel
 brew "pipx"
+brew "ripgrep"                  # Fast grep alternative (rg)
 brew "stow"                     # Symlink manager for dotfiles
 brew "wget"
 brew "yq"
@@ -48,6 +50,7 @@ brew "python-tk@3.14"
 brew "act"                      # Local GitHub Actions runner
 brew "actionlint"               # GitHub Actions linter
 brew "bat"                      # Better cat
+brew "eza"                      # Modern ls replacement
 brew "shellcheck"               # Shell script linter
 brew "starship"                 # Cross-shell prompt
 brew "thefuck"                  # Command correction
