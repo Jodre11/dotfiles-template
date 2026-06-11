@@ -26,6 +26,7 @@ brew "git-filter-repo"          # Git history rewriting
 brew "gitleaks"                 # Secret scanning
 
 # --- Security ---
+brew "age"                      # Modern file encryption
 brew "envchain"                 # Keychain-backed env vars
 brew "uw-labs/tap/strongbox"    # Transparent git encryption
 
