@@ -37,6 +37,22 @@ fi
 echo "Configuring git hooks path..."
 git config --global core.hooksPath "$DOTFILES_DIR/.githooks"
 
+# ---------- Trust third-party taps ----------
+# Homebrew is moving to require explicit trust for non-official taps
+# (becomes default in 5.2.0 / 6.0.0). Trust the specific formulae we
+# depend on so `brew bundle` does not silently skip them. Tap first so
+# the formulae resolve; both `brew tap` and `brew trust` are idempotent.
+# Guarded so older Homebrew without the `trust` subcommand still bootstraps.
+if brew trust --help &>/dev/null; then
+    echo "Trusting third-party tap formulae..."
+    brew tap microsoft/mssql-release
+    brew tap uw-labs/tap
+    brew trust --formula \
+        microsoft/mssql-release/msodbcsql18 \
+        microsoft/mssql-release/mssql-tools18 \
+        uw-labs/tap/strongbox
+fi
+
 # ---------- Brew bundle ----------
 echo "Installing Homebrew packages..."
 brew bundle --file="$DOTFILES_DIR/Brewfile"
