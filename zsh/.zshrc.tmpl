@@ -264,7 +264,11 @@ bup() {
         fi
     done
 }
-alias tls='tmux ls 2>/dev/null'
+# List tmux sessions as "slug  <title>", where the title is the active pane's
+# title (Claude Code writes a task summary there). column aligns the two fields.
+tls() {
+    tmux list-sessions -F '#{session_name}|#{pane_title}' 2>/dev/null | column -t -s '|'
+}
 alias tk='tmux kill-session -a'
 ta() {
     tmux attach -t "$@"
