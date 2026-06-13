@@ -249,6 +249,10 @@ claude-personal() {
 }
 
 alias cat='bat --paging=never'
+alias ls='eza --group-directories-first'
+alias ll='eza -lh --group-directories-first --git'
+alias la='eza -lah --group-directories-first --git'
+alias lt='eza --tree --level=2'
 # Upgrade all Homebrew packages, then trigger Gatekeeper approval for any
 # quarantined cask apps. macOS Sequoia blocks programmatic quarantine removal;
 # opening from Terminal presents an approvable dialogue instead of Finder's
