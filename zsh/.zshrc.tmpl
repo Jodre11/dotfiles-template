@@ -268,10 +268,12 @@ bup() {
         fi
     done
 }
-# List tmux sessions as "slug  <title>", where the title is the active pane's
-# title (Claude Code writes a task summary there). column aligns the two fields.
+# List tmux sessions as "slug  <@topic>  <pane_title>". @topic is the guessed
+# session headline a Claude Code session-topic Stop hook can set (— when unset);
+# pane_title is the active pane's title (Claude Code writes a task summary there).
+# column aligns the three fields.
 tls() {
-    tmux list-sessions -F '#{session_name}|#{pane_title}' 2>/dev/null | column -t -s '|'
+    tmux list-sessions -F '#{session_name}|#{?@topic,#{@topic},—}|#{pane_title}' 2>/dev/null | column -t -s '|'
 }
 alias tk='tmux kill-session -a'
 ta() {
