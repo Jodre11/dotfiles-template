@@ -105,6 +105,7 @@ cask "karabiner-elements"
 cask "macfuse"
 cask "monitorcontrol"
 cask "odbc-manager"
+cask "qlmarkdown"              # Quick Look extension for Markdown rendering
 cask "termius"
 cask "visual-studio-code"
 
