@@ -21,6 +21,10 @@ export ANTHROPIC_DEFAULT_HAIKU_MODEL='__BEDROCK_HAIKU_ARN__'
 export ANTHROPIC_DEFAULT_SONNET_MODEL='__BEDROCK_SONNET_ARN__'
 export ANTHROPIC_DEFAULT_OPUS_MODEL='__BEDROCK_OPUS_ARN__'
 
+# Opus fallback chain consumed by the claude() wrapper's --fallback-model flag.
+# Fires only on 5xx/overload of the primary (not 429). Tried in order.
+export BEDROCK_OPUS_FALLBACK_ARNS='__BEDROCK_OPUS_FALLBACK_ARNS__'
+
 # Flicker-free alt-screen rendering with virtualised scrollback
 export CLAUDE_CODE_NO_FLICKER=1
 
@@ -51,6 +55,6 @@ export CLAUDE_CODE_WORKFLOWS=1
 # v2.1.158 to close the parity gap with first-party. Auto routes effort dynamically per turn.
 export CLAUDE_CODE_ENABLE_AUTO_MODE=1
 
-# Enable the (currently undocumented) LSP tool surface. Required by any LSP plugin
-# (e.g. the C# Roslyn proxy) to actually expose findReferences/goToDefinition/etc to Claude.
+# Enable the (currently undocumented) LSP tool surface. Required by the roslyn-lsp plugin
+# (and any other LSP plugin) to actually expose findReferences/goToDefinition/etc to Claude.
 export ENABLE_LSP_TOOL=1
