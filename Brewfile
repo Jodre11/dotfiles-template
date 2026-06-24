@@ -35,7 +35,8 @@ brew "uw-labs/tap/strongbox"    # Transparent git encryption
 # --- Cloud and infrastructure ---
 brew "awscli"
 brew "azure-cli"
-brew "terraform"
+# tenv manages Terraform/OpenTofu/Terragrunt versions (provides the `terraform` shim)
+brew "tenv"
 brew "tflint"
 
 # --- Languages and runtimes ---
