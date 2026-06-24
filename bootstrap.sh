@@ -217,6 +217,16 @@ if ! pipx list | grep -q "it2"; then
     pipx install it2
 fi
 
+# ---------- Terraform via tenv ----------
+# tenv (installed by brew bundle) manages Terraform versions and provides the
+# `terraform` shim. Track latest-stable so a fresh machine is current; re-running
+# bumps to the newest GA. Both subcommands are idempotent.
+if command -v tenv &>/dev/null; then
+    echo "Installing latest-stable Terraform via tenv..."
+    tenv tf install latest-stable
+    tenv tf use latest-stable
+fi
+
 # ---------- Claude Code settings ----------
 CLAUDE_SETTINGS_DIR="$HOME/.claude"
 # Configure in config.env
