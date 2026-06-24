@@ -13,6 +13,39 @@
                                 "type": "basic"
                             }
                         ]
+                    },
+                    {
+                        "description": "Built-in keyboard: swap ` / ~ and § / ± (Apple British ISO)",
+                        "manipulators": [
+                            {
+                                "from": {
+                                    "key_code": "non_us_backslash",
+                                    "modifiers": { "optional": ["any"] }
+                                },
+                                "to": [{ "key_code": "grave_accent_and_tilde" }],
+                                "conditions": [
+                                    {
+                                        "type": "device_if",
+                                        "identifiers": [{ "is_built_in_keyboard": true }]
+                                    }
+                                ],
+                                "type": "basic"
+                            },
+                            {
+                                "from": {
+                                    "key_code": "grave_accent_and_tilde",
+                                    "modifiers": { "optional": ["any"] }
+                                },
+                                "to": [{ "key_code": "non_us_backslash" }],
+                                "conditions": [
+                                    {
+                                        "type": "device_if",
+                                        "identifiers": [{ "is_built_in_keyboard": true }]
+                                    }
+                                ],
+                                "type": "basic"
+                            }
+                        ]
                     }
                 ]
             },
