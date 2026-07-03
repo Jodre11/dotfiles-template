@@ -79,9 +79,21 @@ fi
 
 # ---------- Stow packages ----------
 echo "Linking dotfiles..."
-PACKAGES=(zsh starship git tmux ghostty hammerspoon gh karabiner editorconfig ssh vscode mcp firefox homebrew aws docker)
+PACKAGES=(zsh starship git tmux ghostty hammerspoon gh karabiner editorconfig ssh vscode mcp firefox homebrew aws)
 for pkg in "${PACKAGES[@]}"; do
     stow -v -t "$HOME" -d "$DOTFILES_DIR" "$pkg"
+done
+
+# ---------- Docker config (copied, not stowed) ----------
+# Docker Desktop 4.69+ refuses to write to symlinks, so these files must be
+# regular copies rather than Stow symlinks. Edit the source in dotfiles/docker/
+# and re-run bootstrap to propagate changes.
+echo "Copying Docker config..."
+mkdir -p "$HOME/.docker"
+for f in config.json daemon.json; do
+    if [ -f "$DOTFILES_DIR/docker/.docker/$f" ]; then
+        cp "$DOTFILES_DIR/docker/.docker/$f" "$HOME/.docker/$f"
+    fi
 done
 
 # ---------- Hammerspoon watchdog LaunchAgent ----------

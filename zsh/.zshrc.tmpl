@@ -255,17 +255,31 @@ alias ll='eza -lh --group-directories-first --git'
 alias la='eza -lah --group-directories-first --git'
 alias lt='eza --tree --level=2'
 # Upgrade all Homebrew packages, then trigger Gatekeeper approval for any
-# quarantined cask apps. macOS Sequoia blocks programmatic quarantine removal;
-# opening from Terminal presents an approvable dialogue instead of Finder's
-# dead-end "Not Opened" prompt.
+# quarantined startup/login cask apps that were actually upgraded. macOS
+# Sequoia blocks programmatic quarantine removal; opening from Terminal
+# presents an approvable dialogue instead of Finder's dead-end prompt.
 bup() {
+    local -A startup_casks=(
+        [docker-desktop]=Docker
+        [bitwarden]=Bitwarden
+        [hammerspoon]=Hammerspoon
+        [karabiner-elements]="Karabiner-Elements"
+        [monitorcontrol]=MonitorControl
+    )
+
+    local -a outdated
+    outdated=("${(@f)$(brew outdated --cask --greedy-latest --quiet 2>/dev/null)}")
+
     HOMEBREW_ACCEPT_EULA=Y brew upgrade --greedy-latest
-    local app
-    for app in /Applications/*.app; do
-        [[ -d "$app" ]] || continue
-        if xattr -p com.apple.quarantine "$app" &>/dev/null; then
-            echo "Opening quarantined app for approval: ${app:t}"
-            open "$app"
+
+    local cask app_name app_path
+    for cask in "${outdated[@]}"; do
+        app_name="${startup_casks[$cask]}"
+        [[ -n "$app_name" ]] || continue
+        app_path="/Applications/${app_name}.app"
+        if [[ -d "$app_path" ]] && xattr -p com.apple.quarantine "$app_path" &>/dev/null; then
+            echo "Opening quarantined startup app for approval: ${app_name}"
+            open "$app_path"
         fi
     done
 }
