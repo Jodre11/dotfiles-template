@@ -20,6 +20,18 @@ configure machine-specific Claude Code settings.
 - Follow the security invariants documented in `SECURITY.md`
 - All shell scripts must pass `shellcheck --severity=warning`
 
+## Docker Config (Not Stowed)
+
+The `docker` package is **copied** by `bootstrap.sh`, not stowed. Docker Desktop
+4.69+ refuses to write to symlinks, so `~/.docker/config.json` and
+`~/.docker/daemon.json` must be regular files.
+
+- After editing files in `docker/.docker/`, remind the user to copy them to
+  `~/.docker/` (or re-run `bootstrap.sh`)
+- After Docker Desktop modifies `~/.docker/config.json` or `daemon.json` (e.g.
+  via its settings UI), check whether the repo copy in `docker/.docker/` is
+  still in sync and remind the user to update it if not
+
 ## Template Strategy
 
 Files with sensitive content use `.tmpl` extensions with `__PLACEHOLDER__` tokens.
