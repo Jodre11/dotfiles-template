@@ -199,7 +199,7 @@ claude() {
         session=$("$HOME/.claude/scripts/derive-claude-slug.sh")
     done
     tmux new-session -s "$session" \
-        "source ~/.claudeenv; exec command claude --model opus --exclude-dynamic-system-prompt-sections ${(q)@}"
+        "source ~/.claudeenv; exec command claude --model opus --fallback-model \$BEDROCK_OPUS_FALLBACK_ARNS --exclude-dynamic-system-prompt-sections ${(q)@}"
 }
 # Launch Claude Code with a personal Pro subscription (no Bedrock).
 # Strips Bedrock env vars so Claude falls back to OAuth login.
@@ -212,6 +212,7 @@ claude-personal() {
         -u ANTHROPIC_DEFAULT_SONNET_MODEL
         -u ANTHROPIC_DEFAULT_OPUS_MODEL
         -u ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION
+        -u BEDROCK_OPUS_FALLBACK_ARNS
         -u CLAUDE_CODE_MAX_OUTPUT_TOKENS
         -u AWS_PROFILE
         -u AWS_REGION
@@ -245,7 +246,7 @@ claude-personal() {
         session=$("$HOME/.claude/scripts/derive-claude-slug.sh" "" p)
     done
     tmux new-session -s "$session" \
-        "tmux set-option status-style 'bg=#eda6c2,fg=black'; unset CLAUDE_CODE_USE_BEDROCK ANTHROPIC_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION CLAUDE_CODE_MAX_OUTPUT_TOKENS AWS_PROFILE AWS_REGION; exec command claude --model opus --exclude-dynamic-system-prompt-sections ${(q)@}"
+        "tmux set-option status-style 'bg=#eda6c2,fg=black'; unset CLAUDE_CODE_USE_BEDROCK ANTHROPIC_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION BEDROCK_OPUS_FALLBACK_ARNS CLAUDE_CODE_MAX_OUTPUT_TOKENS AWS_PROFILE AWS_REGION; exec command claude --model opus --exclude-dynamic-system-prompt-sections ${(q)@}"
 }
 
 alias cat='bat --paging=never'

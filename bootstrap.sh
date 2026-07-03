@@ -33,9 +33,10 @@ if [ ! -d "$DOTFILES_DIR" ]; then
     git clone "$DOTFILES_REPO" "$DOTFILES_DIR"
 fi
 
-# ---------- Git hooks ----------
-echo "Configuring git hooks path..."
-git config --global core.hooksPath "$DOTFILES_DIR/.githooks"
+# ---------- Activate in-repo git hooks ----------
+# Repo-local on purpose: a global core.hooksPath would override hooks in every
+# other repository on the machine (husky, lefthook, etc.).
+git -C "$DOTFILES_DIR" config core.hooksPath .githooks
 
 # ---------- Trust third-party taps ----------
 # Homebrew is moving to require explicit trust for non-official taps

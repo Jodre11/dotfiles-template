@@ -50,6 +50,7 @@ hydrate_simple() {
     content="${content//__BEDROCK_HAIKU_ARN__/${BEDROCK_HAIKU_ARN:-}}"
     content="${content//__BEDROCK_SONNET_ARN__/${BEDROCK_SONNET_ARN:-}}"
     content="${content//__BEDROCK_OPUS_ARN__/${BEDROCK_OPUS_ARN:-}}"
+    content="${content//__BEDROCK_OPUS_FALLBACK_ARNS__/${BEDROCK_OPUS_FALLBACK_ARNS:-}}"
 
     # aws
     content="${content//__SSO_START_URL__/${SSO_START_URL:-}}"
