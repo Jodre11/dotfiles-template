@@ -52,6 +52,7 @@ brew "act"                      # Local GitHub Actions runner
 brew "actionlint"               # GitHub Actions linter
 brew "bat"                      # Better cat
 brew "eza"                      # Modern ls replacement
+brew "glow"                     # Render markdown on the CLI
 brew "shellcheck"               # Shell script linter
 brew "starship"                 # Cross-shell prompt
 brew "thefuck"                  # Command correction
