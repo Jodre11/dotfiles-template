@@ -60,6 +60,9 @@ hydrate_simple() {
     # whisper
     content="${content//__WHISPER_PROMPT__/${WHISPER_PROMPT:-}}"
 
+    # bitwarden
+    content="${content//__BW_BIN__/${BW_BIN:-}}"
+
     printf '%s\n' "$content" > "$output"
     echo "  OK $tmpl → $output"
 }
@@ -113,6 +116,12 @@ hydrate_simple "$SCRIPT_DIR/ssh/.ssh/config.tmpl"
 hydrate_simple "$SCRIPT_DIR/zsh/.claudeenv.tmpl"
 hydrate_simple "$SCRIPT_DIR/zsh/.zprofile.tmpl"
 hydrate_simple "$SCRIPT_DIR/zsh/.zshrc.tmpl"
+
+if [[ -n "${BW_BIN:-}" ]]; then
+    hydrate_simple "$SCRIPT_DIR/bitwarden/Library/LaunchAgents/com.user.bw-serve.plist.tmpl"
+else
+    echo "  SKIP bw-serve plist (BW_BIN unset)"
+fi
 
 echo ""
 echo "Done. Run 'stow' to symlink packages into ~."

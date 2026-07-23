@@ -15,5 +15,5 @@ jobs:
 
       - name: Run ShellCheck
         run: |
-          find . -name '*.sh' -o -name '*.sh.tmpl' \
+          find . \( -name '*.sh' -o -name '*.sh.tmpl' -o -name '*.zsh' \) \
             | xargs shellcheck --severity=warning

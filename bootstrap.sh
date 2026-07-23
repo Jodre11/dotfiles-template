@@ -79,7 +79,7 @@ fi
 
 # ---------- Stow packages ----------
 echo "Linking dotfiles..."
-PACKAGES=(zsh starship git tmux ghostty hammerspoon gh karabiner editorconfig ssh vscode mcp firefox homebrew aws)
+PACKAGES=(zsh starship git tmux ghostty hammerspoon gh karabiner editorconfig ssh vscode mcp firefox homebrew aws bitwarden)
 for pkg in "${PACKAGES[@]}"; do
     stow -v -t "$HOME" -d "$DOTFILES_DIR" "$pkg"
 done
@@ -108,6 +108,13 @@ BREW_CHECK_PLIST="$HOME/Library/LaunchAgents/com.user.brew-check-updates.plist"
 if [ -f "$BREW_CHECK_PLIST" ] && ! launchctl list com.user.brew-check-updates &>/dev/null; then
     echo "Loading Homebrew update check LaunchAgent..."
     launchctl load "$BREW_CHECK_PLIST"
+fi
+
+# ---------- Bitwarden serve daemon ----------
+BW_SERVE_PLIST="$HOME/Library/LaunchAgents/com.user.bw-serve.plist"
+if [ -f "$BW_SERVE_PLIST" ] && ! launchctl list com.user.bw-serve &>/dev/null; then
+    echo "Loading Bitwarden serve LaunchAgent..."
+    launchctl load "$BW_SERVE_PLIST"
 fi
 
 # ---------- Oh My Zsh ----------

@@ -139,6 +139,10 @@ source ~/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 # Bitwarden SSH agent (desktop app must be running and unlocked)
 export SSH_AUTH_SOCK="__SSH_AGENT_SOCK__"
 
+# Bitwarden CLI serve daemon (LaunchAgent-managed; see bitwarden package)
+export BW_SERVE_URL="http://localhost:8087"
+[[ -r "$HOME/.config/zsh/bw-unlock.zsh" ]] && source "$HOME/.config/zsh/bw-unlock.zsh"
+
 export DOTNET_ROOT=/usr/local/share/dotnet
 export PATH=$PATH:$DOTNET_ROOT/tools:$HOME/.dotnet/tools
 # NuGet PAT via envchain (configure NUGET_NAMESPACE in config.env)
