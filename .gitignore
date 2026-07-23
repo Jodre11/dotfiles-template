@@ -24,6 +24,11 @@ Thumbs.db
 
 # Stow
 .stow-local-ignore
+# …but the bitwarden package needs its own tracked ignore (skips *.tmpl strays)
+!bitwarden/.stow-local-ignore
+
+# Hydrated bw serve plist (source of truth is the .tmpl)
+bitwarden/Library/LaunchAgents/com.user.bw-serve.plist
 
 # Playwright MCP
 .playwright-cli/
