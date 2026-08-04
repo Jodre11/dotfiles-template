@@ -83,6 +83,11 @@ brew "bitwarden-cli"
 brew "mosh"
 brew "tailscale", restart_service: :changed
 
+# --- File transfer ---
+brew "duck"                     # Cyberduck CLI (SFTP/S3/WebDAV, scriptable)
+# Homebrew's rclone omits `mount` on macOS (needs FUSE); use `rclone nfsmount` instead
+brew "rclone"                   # Rsync for cloud storage and SFTP
+
 # --- Databases ---
 brew "libiodbc"
 brew "microsoft/mssql-release/msodbcsql18"
@@ -90,6 +95,7 @@ brew "microsoft/mssql-release/mssql-tools18"
 
 # --- Cask apps ---
 cask "bitwarden"
+cask "cyberduck"                # SFTP/FTP/S3/WebDAV client
 cask "docker-desktop"
 cask "dotnet-sdk"
 cask "dotnet-sdk@8"
