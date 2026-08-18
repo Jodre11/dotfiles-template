@@ -57,9 +57,6 @@ hydrate_simple() {
     content="${content//__SSO_REGION__/${SSO_REGION:-}}"
     content="${content//__AWS_REGION__/${AWS_REGION:-}}"
 
-    # whisper
-    content="${content//__WHISPER_PROMPT__/${WHISPER_PROMPT:-}}"
-
     # bitwarden
     content="${content//__BW_BIN__/${BW_BIN:-}}"
 

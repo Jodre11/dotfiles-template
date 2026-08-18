@@ -17,6 +17,15 @@ local WHISPER_PROMPT = "Software engineering discussion. "
 
 local LOG_FILE = os.getenv("HOME") .. "/.local/share/dictation/dictation.log"
 
+-- -ac bounds the encoder's audio context (1500 frames = 30s), which is a large latency
+-- win but silently mangles clips longer than the bound. 1000 covers ~20s, so it is only
+-- applied well inside that limit; longer recordings use the full context.
+local FAST_AUDIO_CTX = "1000"
+local FAST_PATH_MAX_SECONDS = 15
+local WAV_BYTES_PER_SECOND = 16000 * 2  -- 16kHz mono 16-bit, per the sox flags below
+local WAV_HEADER_BYTES = 44
+local CAPTURE_WAIT_TIMEOUT = 1.5
+
 -- Append a timestamped line to the dictation log file
 local function log(msg)
     local f = io.open(LOG_FILE, "a")
@@ -29,8 +38,14 @@ end
 local recording = false
 local recordingTask = nil
 local recordingIndicator = nil
+local captureWatcher = nil
+local pendingSeq = 0
 local lastStateChange = 0
-local DEBOUNCE_SECONDS = 1
+-- Only long enough to swallow a stray F20 arriving with the F19 key-up. Key auto-repeat
+-- is already suppressed in karabiner.json ("repeat": false) and startDictation returns
+-- early while recording, so a longer window buys nothing and silently discards a
+-- deliberate second dictation started moments after the first.
+local DEBOUNCE_SECONDS = 0.2
 
 -- Create red dot indicator in top-right corner (near menu bar)
 local function createIndicator()
@@ -56,6 +71,13 @@ local function hideIndicator()
     if recordingIndicator then recordingIndicator:hide() end
 end
 
+local function stopCaptureWatcher()
+    if captureWatcher then
+        captureWatcher:stop()
+        captureWatcher = nil
+    end
+end
+
 -- Toggle dictation (press to start, press again to stop)
 function toggleDictation()
     if recording then
@@ -76,7 +98,6 @@ function startDictation()
     lastStateChange = now
     recording = true
     log("START recording")
-    showIndicator()
 
     -- Remove stale audio file before recording
     os.remove(AUDIO_FILE)
@@ -87,10 +108,104 @@ function startDictation()
         "-r", "16000",  -- 16kHz sample rate
         "-c", "1",      -- mono
         "-b", "16",     -- 16-bit
+        -- Default buffering delays the first flush to disk by ~560ms; 1024 bytes halves
+        -- that to ~275ms, so the "capture live" indicator can appear sooner. Smaller
+        -- values buy little and risk dropouts under load.
+        "--buffer", "1024",
         AUDIO_FILE,
         "highpass", "200"
     })
     recordingTask:start()
+
+    -- Opening the CoreAudio device costs ~200ms, during which nothing is captured.
+    -- Showing the indicator before that window closes invites the speaker to start
+    -- talking into audio that does not exist, clipping the first word. Poll for the
+    -- first audio bytes past the WAV header and only then signal "speak now".
+    local waited = 0
+    captureWatcher = hs.timer.doEvery(0.02, function()
+        waited = waited + 0.02
+        if not recording then
+            stopCaptureWatcher()
+            return
+        end
+        local f = io.open(AUDIO_FILE, "r")
+        local size = 0
+        if f then
+            size = f:seek("end")
+            f:close()
+        end
+        if size > WAV_HEADER_BYTES then
+            stopCaptureWatcher()
+            log(string.format("CAPTURE live after %.0fms", waited * 1000))
+            showIndicator()
+        elseif waited >= CAPTURE_WAIT_TIMEOUT then
+            -- Never leave the user without feedback if the poll never sees growth.
+            stopCaptureWatcher()
+            log("CAPTURE detect timed out, showing indicator anyway")
+            showIndicator()
+        end
+    end)
+end
+
+-- Normalise whisper output: strip timestamp brackets, trim, collapse newlines, and
+-- leave one trailing space so consecutive dictations do not run together.
+local function cleanText(raw)
+    return (raw:gsub("%[.*%]", ""):gsub("^%s+", ""):gsub("%s+$", ""):gsub("\n+", " ")) .. " "
+end
+
+-- Paste via the clipboard, restoring whatever was there afterwards.
+local function pasteText(text)
+    log("TRANSCRIBED (" .. #text .. " chars)")
+    local saved = hs.pasteboard.readAllData()
+    hs.pasteboard.setContents(text)
+    -- Deferred paste to avoid nested event tap calls
+    hs.timer.doAfter(0, function()
+        hs.eventtap.keyStroke({"cmd"}, "v")
+        hs.timer.doAfter(0.1, function()
+            if saved then
+                hs.pasteboard.clearContents()
+                hs.pasteboard.writeAllData(saved)
+            end
+        end)
+    end)
+end
+
+-- audioPath is a per-recording file, not AUDIO_FILE: the next recording deletes and
+-- recreates AUDIO_FILE, which with a short debounce can happen before whisper-cli has
+-- opened it, transcribing the new recording's opening fragment instead.
+local function transcribe(audioPath, durationSeconds)
+    local args = {
+        "-m", WHISPER_MODEL,
+        "-f", audioPath,
+        "-l", "en",             -- skip language detection
+        "-t", "6",              -- threads (M4: 4P + 6E cores)
+        "--prompt", WHISPER_PROMPT,
+        "--no-fallback",        -- disable temperature fallback (reduces hallucination)
+        "--suppress-nst",       -- suppress non-speech token hallucinations
+        "--vad",
+        "--vad-model", VAD_MODEL,
+        "-np",                  -- no prints (cleaner output)
+        "-nt"                   -- no timestamps
+    }
+    if durationSeconds < FAST_PATH_MAX_SECONDS then
+        table.insert(args, "-ac")
+        table.insert(args, FAST_AUDIO_CTX)
+    end
+
+    local task = hs.task.new("/opt/homebrew/bin/whisper-cli", function(exitCode, stdOut, stdErr)
+        os.remove(audioPath)
+        if exitCode == 0 and stdOut then
+            local text = cleanText(stdOut)
+            if #text > 1 then
+                pasteText(text)
+            else
+                log("TRANSCRIBED (empty result)")
+            end
+        else
+            log("TRANSCRIBE FAILED exit=" .. tostring(exitCode) .. " stderr=" .. tostring(stdErr))
+        end
+    end, args)
+    task:start()
 end
 
 -- Stop recording and transcribe
@@ -99,6 +214,7 @@ function stopDictation()
     lastStateChange = hs.timer.secondsSinceEpoch()
     recording = false
     log("STOP recording")
+    stopCaptureWatcher()
     hideIndicator()
 
     -- Stop sox
@@ -121,45 +237,18 @@ function stopDictation()
             return
         end
 
-        -- Transcribe with whisper
-        local transcribeTask = hs.task.new("/opt/homebrew/bin/whisper-cli", function(exitCode, stdOut, stdErr)
-            if exitCode == 0 and stdOut then
-                -- Clean up the output (remove timestamps and extra whitespace, add trailing space)
-                local text = stdOut:gsub("%[.*%]", ""):gsub("^%s+", ""):gsub("%s+$", ""):gsub("\n+", " ") .. " "
-                if text and #text > 0 then
-                    log("TRANSCRIBED (" .. #text .. " chars)")
-                    -- Deferred paste to avoid nested event tap calls
-                    local saved = hs.pasteboard.readAllData()
-                    hs.pasteboard.setContents(text)
-                    hs.timer.doAfter(0, function()
-                        hs.eventtap.keyStroke({"cmd"}, "v")
-                        hs.timer.doAfter(0.1, function()
-                            if saved then
-                                hs.pasteboard.clearContents()
-                                hs.pasteboard.writeAllData(saved)
-                            end
-                        end)
-                    end)
-                else
-                    log("TRANSCRIBED (empty result)")
-                end
-            else
-                log("TRANSCRIBE FAILED exit=" .. tostring(exitCode) .. " stderr=" .. tostring(stdErr))
-            end
-        end, {
-            "-m", WHISPER_MODEL,
-            "-f", AUDIO_FILE,
-            "-l", "en",             -- skip language detection
-            "-t", "6",              -- threads (M4: 4P + 6E cores)
-            "--prompt", WHISPER_PROMPT,
-            "--no-fallback",        -- disable temperature fallback (reduces hallucination)
-            "--suppress-nst",       -- suppress non-speech token hallucinations
-            "--vad",
-            "--vad-model", VAD_MODEL,
-            "-np",                  -- no prints (cleaner output)
-            "-nt"                   -- no timestamps
-        })
-        transcribeTask:start()
+        -- Claim the audio under a unique name so the next recording cannot delete it
+        -- from under the transcription still reading it.
+        pendingSeq = pendingSeq + 1
+        local audioPath = string.format("%s.%d.wav", AUDIO_FILE, pendingSeq)
+        if not os.rename(AUDIO_FILE, audioPath) then
+            log("SKIP transcription: could not claim audio file")
+            return
+        end
+
+        local durationSeconds = size / WAV_BYTES_PER_SECOND
+        log(string.format("TRANSCRIBE start (%.1fs audio)", durationSeconds))
+        transcribe(audioPath, durationSeconds)
     end)
 end
 
