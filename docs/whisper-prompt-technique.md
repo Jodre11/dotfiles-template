@@ -53,19 +53,49 @@ Check the Datadog monitors and OpenTelemetry traces for the payment service.
 
 ## Configuration
 
-Set the `WHISPER_PROMPT` variable in `config.env`:
+Edit the `WHISPER_PROMPT` variable near the top of `hammerspoon/.hammerspoon/init.lua`. It is a
+plain Lua string concatenation — add a sentence as its own `..` line:
 
-```sh
-WHISPER_PROMPT="Software engineering discussion at Acme Corp. The OrderService API..."
+```lua
+    .. "Software engineering discussion at Acme Corp. The OrderService API is deployed via Helm. "
 ```
 
-Or edit `hammerspoon/.hammerspoon/init.lua` directly — the `WHISPER_PROMPT` variable is near the
-top of the file.
+`~/.hammerspoon/init.lua` is a Stow symlink to that file, so the edit is live once Hammerspoon
+reloads its config (`hs -c 'hs.reload()'`, or the menu-bar Reload Config item).
+
+This value is deliberately *not* hydrated from `config.env` — one line per sentence keeps
+`.githooks/pre-commit` able to scan added lines individually, whereas a single long
+`config.env` entry re-stages every term in the prompt on any edit and trips the identity guard.
+
+## Hard limits and traps
+
+Measured against whisper-cpp 1.9.2 with `large-v3-turbo-q8_0` on an Apple M4.
+
+- **The prompt has a hard ceiling of `n_text_ctx / 2` tokens** — 224 for large-v3 — per
+  `whisper-cli --help`. Overflow keeps the *last* tokens, so it silently eats the *front*
+  of the prompt. No warning was emitted even at 4× the ceiling, and `-np` in init.lua
+  would suppress one anyway, so **never assume you will be told**. Add vocabulary by
+  displacing terms you no longer say, not by appending.
+- **Never set `-mc 0`** (`--max-context 0`). The prompt reaches later decode windows via
+  carried text context; with `-mc 0` biasing collapses — compound product names split into
+  separate words and surnames become phonetic guesses. Verified by A/B.
+- **`--carry-initial-prompt` is not needed.** It is the documented fix for prompt decay,
+  but on a 45s two-window clip it produced byte-identical output — default context
+  carrying already propagates the prompt.
+- **`-ac` (`--audio-ctx`) below the default is unsafe as a blanket setting.** It bounds the
+  encoder's audio context (1500 frames = 30s), so it is tempting: `-ac 1000` cut a 3s
+  transcription from 1691ms to 1036ms with byte-identical text. But on a 45s clip it
+  silently collapsed a whole clause, and `-ac 512` emitted the transcript twice. init.lua
+  therefore applies it only to recordings under 15s.
+- **Dictation longer than ~30s can silently lose a clause** at Whisper's window boundary.
+  Confirmed independent of VAD, of `--no-fallback`, and of both flags above; decoding the
+  affected window in isolation recovers the words, so the audio is intact. Dictate in
+  bursts under 30s.
 
 ## Tips
 
-- Keep the prompt under ~200 tokens (roughly 150 words). Longer prompts slow down inference
-  without proportional accuracy gains.
-- Refresh the prompt quarterly as your vocabulary evolves.
+- Refresh the prompt periodically as your vocabulary evolves, displacing stale terms.
 - Acronyms work best when used in a sentence: "The CQRS pattern in the OrderService" rather
   than just "CQRS OrderService".
+- To confirm a term is actually being biased, transcribe the same clip with and without
+  `--prompt` — the difference is the prompt's contribution.
