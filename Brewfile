@@ -6,6 +6,7 @@ tap "microsoft/mssql-release"
 tap "uw-labs/tap"
 
 # --- Core tools ---
+brew "aspell"                   # Spell checker (backs Claude Code's spellcheck setting)
 brew "bash"
 brew "cmake"
 brew "cmake-docs"
