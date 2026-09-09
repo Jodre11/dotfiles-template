@@ -286,6 +286,10 @@ bup() {
             open "$app_path"
         fi
     done
+
+    # --greedy-latest re-downloads whole cask DMGs on every run and never prunes
+    # them, so the cache grows by hundreds of MB per upgrade without this.
+    brew cleanup --prune=all
 }
 # List tmux sessions as "slug  <@topic>". @topic is the guessed session headline
 # a Claude Code session-topic Stop hook can set (— when unset). column aligns the
