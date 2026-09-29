@@ -11,6 +11,8 @@ ssh/.ssh/config
 zsh/.claudeenv
 zsh/.zprofile
 zsh/.zshrc
+# A temp file hydrate.sh left behind (it removes them on every exit it sees; SIGKILL or power loss can leave one).
+.*.hydrate.*
 
 # OS
 .DS_Store

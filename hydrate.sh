@@ -6,6 +6,8 @@
 #   ./hydrate.sh          # write every output, reporting NEW, CHANGED or UNCHANGED
 #   ./hydrate.sh --diff   # preview: print each changed output's diff, write nothing
 set -euo pipefail
+# bash >= 5.2 expands & in a ${var//pattern/replacement} replacement to the match; keep config.env values literal.
+shopt -u patsub_replacement 2>/dev/null || true
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/config.env"
@@ -54,7 +56,7 @@ require_regular() {
 # failure print FAIL and exit 1; the EXIT trap removes the temp.
 write_output() {
     local output="$1" content="$2" mode_src="$1"
-    if ! HY_TMP=$(mktemp "$(dirname -- "$output")/.$(basename -- "$output").XXXXXX"); then
+    if ! HY_TMP=$(mktemp "$(dirname -- "$output")/.$(basename -- "$output").hydrate.XXXXXX"); then
         HY_TMP=""
         echo "  FAIL $output (cannot create a temp file beside it)" >&2
         exit 1

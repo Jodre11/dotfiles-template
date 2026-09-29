@@ -4,7 +4,8 @@ This repo manages macOS dotfiles using GNU Stow. All config files live in
 package directories and are symlinked into `~` by Stow.
 
 `bootstrap.sh` is macOS-specific (Homebrew, Stow, Xcode CLI tools). It also
-clones claude-settings into `~/.claude` and runs `setup-platform.sh` to
+clones claude-settings into `~/.claude`, stops until `~/.claude/config.env`
+exists, then runs `~/.claude/hydrate.sh --force` and `setup-platform.sh` to
 configure machine-specific Claude Code settings.
 
 ## Key Rules

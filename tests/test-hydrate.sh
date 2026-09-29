@@ -81,16 +81,16 @@ new_fixture() {
 run_hydrate() {
     rc=0
     if [[ -n "$2" ]]; then
-        out=$(bash "$1/hydrate.sh" "$2" 2>&1) || rc=$?
+        out=$("$BASH" "$1/hydrate.sh" "$2" 2>&1) || rc=$?
     else
-        out=$(bash "$1/hydrate.sh" 2>&1) || rc=$?
+        out=$("$BASH" "$1/hydrate.sh" 2>&1) || rc=$?
     fi
 }
 
 # run_hydrate_path <dir> <bin-dir>: run <dir>'s hydrate.sh with <bin-dir> first on PATH; set rc and out.
 run_hydrate_path() {
     rc=0
-    out=$(PATH="$2:$PATH" bash "$1/hydrate.sh" 2>&1) || rc=$?
+    out=$(PATH="$2:$PATH" "$BASH" "$1/hydrate.sh" 2>&1) || rc=$?
 }
 
 # stub_failing <dir> <command>: write a stub <command> that always fails into <dir>/bin; print that directory.
@@ -137,7 +137,7 @@ check_match "a second run reports the AWS config UNCHANGED, though its content e
     "UNCHANGED $d/aws/.aws/config" "$out"
 check_no_match "a second run writes nothing" '  OK ' "$out"
 
-# --- the write is in place, so a launched script keeps its execute bit
+# --- a rewritten output keeps its mode, so a launched script stays executable
 d=$(new_fixture)
 printf '%s\n' '#!/usr/bin/env bash' 'site=stale' >"$d/scripts/datadog-mcp.sh"
 chmod 755 "$d/scripts/datadog-mcp.sh"
@@ -149,13 +149,48 @@ else
     check "a rewritten script stays executable" "yes" "no"
 fi
 
-# --- a failed write stops the run
+# --- a directory in an output's place stops the run
 d=$(new_fixture)
 mkdir "$d/zsh/.zshrc"
 run_hydrate "$d" ""
-check "a failed write exits 1" 1 "$rc"
-check_match "a failed write prints FAIL" "FAIL $d/zsh/.zshrc" "$out"
-check_no_match "a failed write prints no OK for that output" "OK $d/zsh/.zshrc" "$out"
+check "a directory in an output's place exits 1" 1 "$rc"
+check_match "a directory in an output's place prints FAIL" "FAIL $d/zsh/.zshrc" "$out"
+check_no_match "a directory in an output's place prints no OK for it" "OK $d/zsh/.zshrc" "$out"
+
+# --- a write that fills the disk leaves the output as it was
+d=$(new_fixture)
+only_zshrc "$d"
+printf 'name=__GIT_USER_NAME__%s\n' "$(printf 'x%.0s' {1..6000})" >"$d/zsh/.zshrc.tmpl"
+printf '%s\n' 'name=stale' >"$d/zsh/.zshrc"
+cp "$d/zsh/.zshrc" "$tmp/zshrc.before"
+rc=0
+out=$(trap '' XFSZ; ulimit -f 2; "$BASH" "$d/hydrate.sh" 2>&1) || rc=$?
+check "a write that fills the disk exits 1" 1 "$rc"
+check_no_match "a write that fills the disk prints no OK" "OK $d/zsh/.zshrc" "$out"
+check_same "a write that fills the disk leaves the output as it was" "$d/zsh/.zshrc" "$tmp/zshrc.before"
+check "a write that fills the disk leaves no temp file behind" "" "$(find "$d/zsh" -name '..zshrc.*' -print)"
+
+# --- an & in a config.env value is kept literally
+d=$(new_fixture)
+only_zshrc "$d"
+printf '%s\n' "GIT_USER_NAME='Smith & Co'" >"$d/config.env"
+run_hydrate "$d" ""
+check "an & in a config.env value is kept literally" "name=Smith & Co" "$(cat "$d/zsh/.zshrc")"
+
+# --- a temp file's name is gitignored
+d=$(new_fixture)
+only_zshrc "$d"
+mkdir -p "$d/bin"
+printf '#!/bin/sh\nprintf "%%s\\n" "$3" >"%s/mv-arg"\nexit 1\n' "$d" >"$d/bin/mv"
+chmod +x "$d/bin/mv"
+run_hydrate_path "$d" "$d/bin"
+name=$(basename "$(cat "$d/mv-arg" 2>/dev/null || printf 'none')")
+check_match "the temp file is named .<output>.hydrate.*" '^\.\.zshrc\.hydrate\.' "$name"
+if git -C "$repo_root" check-ignore -q -- "zsh/$name"; then
+    check "the temp file's name is gitignored" "ignored" "ignored"
+else
+    check "the temp file's name is gitignored" "ignored" "not ignored"
+fi
 
 # --- the write is atomic: a failure leaves the output as it was
 d=$(new_fixture)

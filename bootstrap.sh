@@ -269,7 +269,7 @@ if [[ ! -f "$CLAUDE_SETTINGS_DIR/config.env" ]]; then
 fi
 
 echo "Hydrating Claude Code settings..."
-"$CLAUDE_SETTINGS_DIR/hydrate.sh" --force
+bash "$CLAUDE_SETTINGS_DIR/hydrate.sh" --force
 
 echo "Running Claude Code platform setup..."
 bash "$CLAUDE_SETTINGS_DIR/scripts/setup-platform.sh"
