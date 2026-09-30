@@ -259,6 +259,18 @@ if [ ! -d "$CLAUDE_SETTINGS_DIR/.git" ]; then
     git clone "$CLAUDE_SETTINGS_REPO" "$CLAUDE_SETTINGS_DIR"
 fi
 
+# settings.json is generated, not tracked, and hydrate.sh needs config.env, which is not tracked either: stop until
+# it exists, then hydrate before setup-platform.sh, which needs settings.json.
+if [[ ! -f "$CLAUDE_SETTINGS_DIR/config.env" ]]; then
+    echo "Error: $CLAUDE_SETTINGS_DIR/config.env not found." >&2
+    echo "Copy $CLAUDE_SETTINGS_DIR/config.env.example to config.env beside it, fill in your values," >&2
+    echo "then re-run bootstrap.sh." >&2
+    exit 1
+fi
+
+echo "Hydrating Claude Code settings..."
+bash "$CLAUDE_SETTINGS_DIR/hydrate.sh" --force
+
 echo "Running Claude Code platform setup..."
 bash "$CLAUDE_SETTINGS_DIR/scripts/setup-platform.sh"
 

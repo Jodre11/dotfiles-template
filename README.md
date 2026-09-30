@@ -57,7 +57,8 @@ cp config.env.example config.env
 ### 3. Hydrate templates
 
 ```bash
-./hydrate.sh
+./hydrate.sh --diff   # preview: print each changed output's diff, write nothing
+./hydrate.sh          # write every output, reporting NEW, CHANGED or UNCHANGED
 ```
 
 ### 4. Bootstrap (full setup)
@@ -65,6 +66,11 @@ cp config.env.example config.env
 ```bash
 ./bootstrap.sh
 ```
+
+Bootstrap clones claude-settings into `~/.claude`, then stops once and asks you to create
+`~/.claude/config.env` from its `config.env.example`. Create it only after that clone: a
+`~/.claude` that is not a git repository is moved to `~/.claude.bak`. Then re-run
+`./bootstrap.sh`, which hydrates Claude Code's settings before its platform setup.
 
 Or just link specific packages:
 
