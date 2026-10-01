@@ -24,7 +24,8 @@ Follow these when adding or modifying scripts and configuration.
 - **Git hooks + gitleaks** — `.githooks/guard-config.sh` and `.gitleaks.toml`
   define the patterns. The pre-commit hook scans every added line and runs
   gitleaks on every commit; the pre-push hook repeats both over every commit a
-  push would publish, including its message and author. Neither gitleaks scan
+  push would publish, including its message, author and committer, and scans
+  each pushed annotated tag's message and tagger. Neither gitleaks scan
   has a bypass; `SKIP_PATTERN_SCAN=1` skips only the pattern scan. CI runs
   gitleaks on every push and PR.
 - **Local pattern lists** — names that must not be published, kept out of the

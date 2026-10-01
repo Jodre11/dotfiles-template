@@ -36,7 +36,21 @@ try .githooks/guard-config.sh "# see $word"
 check "pre-commit skips the file that defines the patterns" 0 "$rc"
 try .githooks/pre-commit "# see $word"
 check "pre-commit skips the hook that defined the patterns before guard-config.sh" 0 "$rc"
-firewall=hooks/secret-x.test.sh
+try .githooks/guard-config.sh "# account \`$digits\`"
+check "a secret-shaped value bites in guard-config.sh" 1 "$rc"
+check_match "that rejection comes from the pattern scan" 'sensitive pattern detected' "$out"
+try .gitleaks.toml "# account \`$digits\`"
+check "a secret-shaped value bites in .gitleaks.toml" 1 "$rc"
+marker=$(printf '%s%s' '-----BEG' 'IN.*PRIVATE KEY-----')
+try .githooks/guard-config.sh "ALWAYS_PATTERNS+=('$marker')"
+check "guard-config.sh may still define a pattern that matches its own text" 0 "$rc"
+if have_gitleaks "gitleaks rows of the guard files"; then
+    try .githooks/guard-config.sh "# account \`$digits\`" SKIP_PATTERN_SCAN=1
+    check "gitleaks flags an account ID in guard-config.sh under SKIP_PATTERN_SCAN=1" 1 "$rc"
+    try .githooks/guard-config.sh "ALWAYS_PATTERNS+=('$marker')" SKIP_PATTERN_SCAN=1
+    check "gitleaks still lets guard-config.sh define a pattern that matches its own text" 0 "$rc"
+fi
+firewall=hooks/secret-patterns.test.sh
 if [[ -n "$ALWAYS_EXEMPT_RE" && "$firewall" =~ $ALWAYS_EXEMPT_RE ]]; then
     firewall_rc=0
 else
@@ -46,6 +60,8 @@ try "$firewall" "account \`$digits\`"
 check "pre-commit applies ALWAYS_EXEMPT_RE to a secret-firewall test file" "$firewall_rc" "$rc"
 try "$firewall" "see $word"
 check "identity still bites in a secret-firewall test file" 1 "$rc"
+try hooks/secret-new.test.sh "account \`$digits\`"
+check "ALWAYS_EXEMPT_RE does not cover a secret-*.test.sh file it does not name" 1 "$rc"
 
 # --- pre-commit: fingerprint forms
 for line in "account \`$digits\`" "the account (\`$digits\`)" "aws_account:$digits" "arn:aws:iam::$digits:role/x" \
@@ -90,6 +106,13 @@ try_listed always "$local_id" "$memory" "profile|$local_id|role"
 check "always-patterns.local bites under a memory path" 1 "$rc"
 try_listed always "$local_id" "$firewall" "profile|$local_id|role"
 check "always-patterns.local bites in a secret-firewall test file" 1 "$rc"
+try_listed identity "$local_word" .githooks/guard-config.sh "# see $local_word"
+check "identity-patterns.local bites in guard-config.sh" 1 "$rc"
+check_match "the guard-file rejection comes from the pattern scan" 'sensitive pattern detected' "$out"
+try_listed always "$local_id" .gitleaks.toml "# profile|$local_id|role"
+check "always-patterns.local bites in .gitleaks.toml" 1 "$rc"
+try_listed identity "$local_word" .githooks/pre-commit "# see $local_word"
+check "identity-patterns.local bites in the pre-commit" 1 "$rc"
 d=$(new_repo)
 printf '%s\r\n' '# a comment' "$local_word" >"$d/.githooks/identity-patterns.local"
 commit_line "$d" notes.md "see $local_word"
@@ -99,6 +122,16 @@ printf '%s\n' "$local_word" >"$tmp/outside-list.txt"
 ln -s "$tmp/outside-list.txt" "$d/.githooks/identity-patterns.local"
 commit_line "$d" notes.md "see $local_word"
 check "pre-commit reads a local list through a symlink" 1 "$rc"
+d=$(new_repo)
+with_list "$d" identity "$local_word"
+git -C "$d" worktree add -q -b wt "$d-wt"
+commit_line "$d-wt" notes.md "see $local_word"
+check "pre-commit applies the main worktree's local lists in a linked worktree" 1 "$rc"
+d=$(new_repo)
+git -C "$d" worktree add -q -b wt "$d-wt"
+with_list "$d-wt" always "$local_id"
+commit_line "$d-wt" notes.md "profile|$local_id|role"
+check "pre-commit still applies a linked worktree's own local list" 1 "$rc"
 d=$(new_repo)
 ln -s "$tmp/no-such-list.txt" "$d/.githooks/identity-patterns.local"
 commit_line "$d" notes.md "clean line"
@@ -133,9 +166,29 @@ with_list "$d" identity '(unbalanced'
 commit_line "$d" notes.md "clean line"
 check "pre-commit fails closed on a local pattern awk cannot compile" 1 "$rc"
 d=$(new_repo)
+with_list "$d" identity "zqxcafé"
+commit_line "$d" notes.md "see zqxcafé"
+check "a non-ASCII local pattern matches" 1 "$rc"
+d=$(new_repo)
+with_list "$d" identity 'zqx\Sorg'
+commit_line "$d" notes.md "clean line"
+check "pre-commit fails closed on an upper-case PCRE-only local pattern" 1 "$rc"
+d=$(new_repo)
 printf '%s\n' "IDENTITY_PATTERNS+=('a\\sb')" >>"$d/.githooks/guard-config.sh"
+git -C "$d" add .githooks/guard-config.sh
 commit_line "$d" notes.md "clean line"
 check "pre-commit fails closed on a tracked pattern awk cannot match as written" 1 "$rc"
+check_match "that refusal comes from the pattern check" 'awk cannot match as written' "$out"
+d=$(new_repo)
+printf '%s\n' "BUILTINS_EXEMPT_RE='^notes\\.md\$'" >>"$d/.githooks/guard-config.sh"
+commit_line "$d" notes.md "clean line"
+check "pre-commit refuses while guard-config.sh differs from its staged copy" 1 "$rc"
+check_match "the refusal names guard-config.sh" 'guard-config.sh differs from its staged copy' "$out"
+d=$(new_repo)
+printf '%s\n' "# a comment" >>"$d/.githooks/guard-config.sh"
+git -C "$d" add .githooks/guard-config.sh
+commit_line "$d" notes.md "clean line"
+check "pre-commit accepts a staged guard-config.sh edit" 0 "$rc"
 for name in identity-patterns.local always-patterns.local Identity-Patterns.local; do
     d=$(new_repo)
     printf 'x\n' >"$d/.githooks/$name"
@@ -520,13 +573,15 @@ path = "local.toml"/' "$d/.gitleaks.toml"
     git -C "$d" update-index --add --cacheinfo "160000,$(git -C "$d" rev-parse HEAD),sub"
     commit_staged "$d"
     check "a staged submodule is not mistaken for a secret" 0 "$rc"
-    if [[ -n "$BUILTINS_EXEMPT_RE" && hooks/secret-x.test.sh =~ $BUILTINS_EXEMPT_RE ]]; then
-        try hooks/secret-x.test.sh "aws $key"
+    if [[ -n "$BUILTINS_EXEMPT_RE" && hooks/secret-patterns.test.sh =~ $BUILTINS_EXEMPT_RE ]]; then
+        try hooks/secret-patterns.test.sh "aws $key"
         check "BUILTINS_EXEMPT_RE exempts the secret-firewall test vectors from the built-ins pass" 0 "$rc"
     else
-        try hooks/secret-x.test.sh "aws $key"
+        try hooks/secret-patterns.test.sh "aws $key"
         check "with no BUILTINS_EXEMPT_RE match, the built-ins pass scans every path" 1 "$rc"
     fi
+    try hooks/secret-new.test.sh "aws $key"
+    check "the built-ins pass scans a secret-*.test.sh file BUILTINS_EXEMPT_RE does not name" 1 "$rc"
 fi
 
 # --- pattern sync
@@ -571,6 +626,11 @@ add_identity "$d" 'x\sy'
 printf '%s\n' '' '[[rules]]' 'id = "drift-test"' "regex = '''(?i)x\\sy'''" >>"$d/.gitleaks.toml"
 run_sync "$d"
 check_match "pattern sync catches PCRE-only syntax" 'PCRE' "$out"
+d=$(sync_copy)
+add_identity "$d" 'x\Sy'
+printf '%s\n' '' '[[rules]]' 'id = "drift-test"' "regex = '''(?i)x\\Sy'''" >>"$d/.gitleaks.toml"
+run_sync "$d"
+check_match "pattern sync catches upper-case PCRE-only syntax" 'PCRE' "$out"
 d=$(sync_copy)
 printf '%s\n' 'target_rules = ["personal-identity"]' >>"$d/.gitleaks.toml"
 run_sync "$d"

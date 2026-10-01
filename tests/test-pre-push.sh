@@ -77,10 +77,55 @@ raw_commit "$d" notes.md "profile|$local_id|role"
 push_to "$d" origin main
 check "pre-push refuses a literal from always-patterns.local" 1 "$rc"
 d=$(push_repo)
+with_list "$d" identity "$local_word"
+git -C "$d" worktree add -q -b wt "$d-wt"
+raw_commit "$d-wt" notes.md "see $local_word"
+push_to "$d-wt" origin wt
+check "pre-push applies the main worktree's local lists in a linked worktree" 1 "$rc"
+d=$(push_repo)
 with_list "$d" identity "$local_word "
 raw_commit "$d" notes.md "clean line"
 push_to "$d" origin main
 check "pre-push fails closed on a local pattern with a trailing space" 1 "$rc"
+d=$(push_repo)
+with_list "$d" identity "$local_word"
+raw_commit "$d" .githooks/guard-config.sh "# see $local_word"
+push_to "$d" origin main
+check "pre-push refuses a local identity word in guard-config.sh" 1 "$rc"
+d=$(push_repo)
+git -C "$d" checkout -q -b side
+raw_commit "$d" .githooks/guard-config.sh "# side change"
+git -C "$d" checkout -q main
+push_to "$d" origin side
+check "pre-push refuses a ref whose committed guard-config.sh differs from the one in use" 1 "$rc"
+check_match "the refusal names guard-config.sh" 'guard-config.sh committed at' "$out"
+d=$(push_repo)
+git -C "$d" checkout -q -b side
+raw_commit "$d" .githooks/guard-config.sh "# side change"
+push_to "$d" origin side
+check "pre-push accepts a ref whose committed guard-config.sh is the one in use" 0 "$rc"
+d=$(push_repo)
+raw_commit "$d" .gitleaks.toml "# account \`$digits\`"
+push_to "$d" origin main
+check "pre-push refuses a secret-shaped value in .gitleaks.toml" 1 "$rc"
+d=$(push_repo)
+git -C "$d" config log.showRoot false
+git -C "$d" checkout -q --orphan side
+raw_commit "$d" notes.md "see $word"
+push_to "$d" origin side
+check "pre-push scans a root commit under log.showRoot=false" 1 "$rc"
+d=$(push_repo)
+git -C "$d" config log.showRoot false
+git -C "$d" checkout -q --orphan side
+raw_commit "$d" .githooks/identity-patterns.local "x"
+push_env "$d" SKIP_PATTERN_SCAN=1 origin side
+check "pre-push refuses a root commit that adds a local list under log.showRoot=false" 1 "$rc"
+d=$(push_repo)
+git -C "$d" config i18n.logOutputEncoding UTF-16
+with_list "$d" identity "$local_word"
+raw_commit "$d" notes.md "clean line" -m "mentions $local_word"
+push_to "$d" origin main
+check "pre-push scans commit metadata under i18n.logOutputEncoding=UTF-16" 1 "$rc"
 d=$(push_repo)
 raw_commit "$d" "$memory" "see $word"
 push_to "$d" origin main
@@ -122,6 +167,55 @@ with_list "$d" identity "$local_word"
 raw_commit "$d" notes.md "clean line" --author "Someone <1+$local_word@users.noreply.github.com>"
 push_to "$d" origin main
 check "pre-push allows the GitHub noreply alias of a listed handle" 0 "$rc"
+d=$(push_repo)
+with_list "$d" identity "$local_word"
+raw_commit "$d" notes.md "clean line" --author "Someone <1+a.${local_word}_b@users.noreply.github.com>"
+push_to "$d" origin main
+check "pre-push refuses a noreply-shaped author whose handle GitHub would not issue" 1 "$rc"
+d=$(push_repo)
+with_list "$d" identity "$local_word"
+raw_commit "$d" notes.md "clean line" -m "see 9+$local_word@users.noreply.github.com"
+push_to "$d" origin main
+check "pre-push scans a noreply-shaped address in a commit message" 1 "$rc"
+d=$(push_repo)
+with_list "$d" identity "$local_word"
+git -C "$d" tag -a -m "mentions $local_word" v1
+push_to "$d" origin v1
+check "pre-push refuses a local identity word in an annotated tag's message" 1 "$rc"
+check_match "the refusal names the tag" 'sensitive pattern detected in the tag' "$out"
+d=$(push_repo)
+with_list "$d" identity "$local_word"
+git -C "$d" -c user.email="someone@$local_word.example" tag -a -m "release" v1
+push_to "$d" origin v1
+check "pre-push refuses a local identity word in a tagger email" 1 "$rc"
+d=$(push_repo)
+git -C "$d" tag -a -m "mentions account \`$digits\`" v1
+push_to "$d" origin v1
+check "pre-push refuses a secret-shaped value in a tag message" 1 "$rc"
+d=$(push_repo)
+git -C "$d" tag -a -m "release" v1
+push_to "$d" origin v1
+check "pre-push allows a clean annotated tag of a pushed commit" 0 "$rc"
+d=$(push_repo)
+with_list "$d" identity "$local_word"
+git -C "$d" tag -a -m "mentions $local_word" v1
+push_env "$d" SKIP_PATTERN_SCAN=1 origin v1
+check "SKIP_PATTERN_SCAN=1 skips the tag scan too" 0 "$rc"
+d=$(push_repo)
+blob=$(printf 'see %s\n' "$word" | git -C "$d" hash-object -w --stdin)
+git -C "$d" tag blobtag "$blob"
+push_to "$d" origin blobtag
+check "pre-push refuses a ref that names a blob" 1 "$rc"
+check_match "the refusal names the object type" 'names a blob' "$out"
+d=$(push_repo)
+git -C "$d" tag treetag "main^{tree}"
+push_to "$d" origin treetag
+check "pre-push refuses a ref that names a tree" 1 "$rc"
+d=$(push_repo)
+blob=$(printf 'x\n' | git -C "$d" hash-object -w --stdin)
+git -C "$d" tag -a -m "a blob" blobtag "$blob"
+push_to "$d" origin blobtag
+check "pre-push refuses an annotated tag of a blob" 1 "$rc"
 d=$(push_repo)
 with_list "$d" identity "$local_word"
 raw_commit "$d" notes.md "see $local_word" -m "mentions $local_word"
@@ -267,12 +361,53 @@ if have_gitleaks "pre-push gitleaks rows"; then
     git -C "$d" -c core.hooksPath=/dev/null commit -q -m "no config"
     push_to "$d" origin main
     check "pre-push refuses a pushed tip with no .gitleaks.toml" 1 "$rc"
-    if [[ -n "$BUILTINS_EXEMPT_RE" && hooks/secret-x.test.sh =~ $BUILTINS_EXEMPT_RE ]]; then
+    d=$(push_repo)
+    git -C "$d" checkout -q -b side
+    raw_commit "$d" side.md "side line"
+    git -C "$d" checkout -q main
+    raw_commit "$d" main.md "main line"
+    git -C "$d" -c core.hooksPath=/dev/null merge -q --no-ff --no-commit side
+    printf 'account `%s`\n' "$digits" >"$d/evil.md"
+    git -C "$d" add -f evil.md
+    git -C "$d" -c core.hooksPath=/dev/null commit -q -m merge
+    push_env "$d" SKIP_PATTERN_SCAN=1 origin main
+    check "gitleaks reads what only a merge adds, even under SKIP_PATTERN_SCAN=1" 1 "$rc"
+    d=$(push_repo)
+    printf 'x\000account `%s`\n' "$digits" >"$d/blob.bin"
+    git -C "$d" add -f blob.bin
+    git -C "$d" -c core.hooksPath=/dev/null commit -q -m binary
+    push_env "$d" SKIP_PATTERN_SCAN=1 origin main
+    check "gitleaks' custom rules scan a pushed binary blob" 1 "$rc"
+    d=$(push_repo)
+    printf 'x\000clean\n' >"$d/blob.bin"
+    git -C "$d" add -f blob.bin
+    git -C "$d" -c core.hooksPath=/dev/null commit -q -m binary
+    push_env "$d" SKIP_PATTERN_SCAN=1 origin main
+    check "pre-push allows a clean pushed binary blob" 0 "$rc"
+    d=$(push_repo)
+    git -C "$d" config diff.hide.textconv true
+    raw_commit "$d" .gitattributes '*.dat diff=hide'
+    raw_commit "$d" notes.dat "account \`$digits\`"
+    push_env "$d" SKIP_PATTERN_SCAN=1 origin main
+    check "gitleaks' custom rules scan a blob behind a textconv driver" 1 "$rc"
+    d=$(push_repo)
+    raw_commit "$d" docs/old.gitleaks.toml "account \`$digits\`"
+    push_env "$d" SKIP_PATTERN_SCAN=1 origin main
+    check "gitleaks' custom rules scan a path named like gitleaks.toml" 1 "$rc"
+    d=$(push_repo)
+    raw_commit "$d" .githooks/guard-config.sh "# account \`$digits\`"
+    push_env "$d" SKIP_PATTERN_SCAN=1 origin main
+    check "pre-push gitleaks flags an account ID in guard-config.sh under SKIP_PATTERN_SCAN=1" 1 "$rc"
+    if [[ -n "$BUILTINS_EXEMPT_RE" && hooks/secret-patterns.test.sh =~ $BUILTINS_EXEMPT_RE ]]; then
         d=$(push_repo)
-        raw_commit "$d" hooks/secret-x.test.sh "aws $key"
+        raw_commit "$d" hooks/secret-patterns.test.sh "aws $key"
         push_env "$d" SKIP_PATTERN_SCAN=1 origin main
         check "the pre-push built-ins pass honours BUILTINS_EXEMPT_RE" 0 "$rc"
     fi
+    d=$(push_repo)
+    raw_commit "$d" hooks/secret-new.test.sh "aws $key"
+    push_env "$d" SKIP_PATTERN_SCAN=1 origin main
+    check "the pre-push built-ins pass scans a secret-*.test.sh file BUILTINS_EXEMPT_RE does not name" 1 "$rc"
 fi
 
 finish
