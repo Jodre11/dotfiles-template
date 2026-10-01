@@ -109,7 +109,7 @@ Four layers keep sensitive data out of the repository:
    leaves the machine. It also scans each commit's message, author and committer, and each annotated tag's message,
    tagger and name, and refuses a ref that names a blob or a tree.
 3. **CI** — gitleaks, a pattern-sync check (`tests/test-pattern-sync.sh`) and an output-ignore check
-   (`tests/test-output-ignore.sh`) run on every push and pull request.
+   (`tests/test-output-ignore.sh`) run on every push to `main` and every pull request into it.
 4. **GitHub secret scanning and push protection** — enabled at the repository level.
 
 `bootstrap.sh` activates both hooks by setting a repo-local `core.hooksPath .githooks`; git does not do this on

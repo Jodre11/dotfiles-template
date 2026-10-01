@@ -27,7 +27,7 @@ Follow these when adding or modifying scripts and configuration.
   push would publish, including its message, author and committer, and scans
   each pushed annotated tag's message and tagger. Neither gitleaks scan
   has a bypass; `SKIP_PATTERN_SCAN=1` skips only the pattern scan. CI runs
-  gitleaks on every push and PR.
+  gitleaks on every push to `main` and every PR into it.
 - **Local pattern lists** — names that must not be published, kept out of the
   repository in the gitignored `.githooks/*-patterns.local` lists, which the
   hooks read and refuse to commit.
@@ -45,7 +45,8 @@ Follow these when adding or modifying scripts and configuration.
 
 ## CI Gates
 
-- **Gitleaks** — scans for accidental secret commits on every push and PR.
+- **Gitleaks** — scans for accidental secret commits on every push to `main`
+  and every PR into it.
 - **Pattern sync test** — verifies the hooks' patterns in
   `.githooks/guard-config.sh` stay aligned with `.gitleaks.toml`.
 - **Output-ignore check** — verifies every hydrated output, `config.env` and the
