@@ -41,3 +41,5 @@ jobs:
         run: bash tests/test-pre-push.sh
       - name: Push the whole history through the pre-push
         run: bash tests/test-history-push.sh
+      - name: Run the output-ignore check tests
+        run: bash tests/test-output-ignore-check.sh

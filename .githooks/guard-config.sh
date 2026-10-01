@@ -67,6 +67,11 @@ IDENTITY_EXEMPT_RE='^docs/whisper-prompt-technique\.md$|^tests/test-pattern-sync
 # is exempt.
 LOCAL_IDENTITY_EXEMPT_RE='^$.'
 
+# Patterns of identity-patterns.local this repository disregards on every path, for a marker that is its own public
+# identity. Each entry is the exact text of one line of that list; an entry that matches no line drops nothing, so a
+# changed pattern bites again. always-patterns.local and the tracked patterns cannot be opted out of. None here.
+LOCAL_IDENTITY_IGNORE=()
+
 # Paths the built-ins pass skips. This ERE never matches either, so gitleaks' built-in rules scan every path. To clear
 # a built-in false positive, replace it with an anchored alternation of the paths to exempt, in a reviewed commit.
 BUILTINS_EXEMPT_RE='^$.'

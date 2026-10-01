@@ -30,7 +30,10 @@ Follow these when adding or modifying scripts and configuration.
   gitleaks on every push to `main` and every PR into it.
 - **Local pattern lists** — names that must not be published, kept out of the
   repository in the gitignored `.githooks/*-patterns.local` lists, which the
-  hooks read and refuse to commit.
+  hooks read and refuse to commit. A repository can disregard a local identity
+  pattern that is its own public identity by putting its exact text in
+  `LOCAL_IDENTITY_IGNORE` in `.githooks/guard-config.sh`, a reviewed commit; the
+  secret-shaped list cannot be opted out of.
 - **No private keys on disk** — SSH keys are served by the Bitwarden SSH agent.
   `.gitconfig` references the public key inline for commit signing.
 - **Subprocess env scrubbing** — `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` prevents
@@ -52,8 +55,9 @@ Follow these when adding or modifying scripts and configuration.
 - **Output-ignore check** — verifies every hydrated output, `config.env` and the
   local pattern lists are gitignored and untracked.
 - **Guard tests** — `tests/test-git-guards.sh` and `tests/test-pre-push.sh`
-  exercise both hooks against planted values, and `tests/test-history-push.sh`
-  pushes the whole history through the pre-push, as a fork's first push would.
+  exercise both hooks against planted values, `tests/test-history-push.sh`
+  pushes the whole history through the pre-push, as a fork's first push would,
+  and `tests/test-output-ignore-check.sh` tests the output-ignore check itself.
 - **ShellCheck** — static analysis of all `.sh`, `.sh.tmpl` and `.zsh` files and
   the git hooks at `--severity=warning` or above. Exclusions are centralised in
   `.shellcheckrc`.
