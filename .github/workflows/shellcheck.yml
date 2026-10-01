@@ -18,5 +18,5 @@ jobs:
 
       - name: Run ShellCheck
         run: |
-          find . \( -name '*.sh' -o -name '*.sh.tmpl' -o -name '*.zsh' \) -print0 \
+          find . \( -name '*.sh' -o -name '*.sh.tmpl' -o -name '*.zsh' -o -path './.githooks/*' \) -print0 \
             | xargs -0 shellcheck --severity=warning
