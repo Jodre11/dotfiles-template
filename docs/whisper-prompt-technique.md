@@ -22,8 +22,8 @@ vocabulary. This means:
 
 Gather terms from your work environment:
 
-- **Repository names** — `gh repo list yourorg --limit 100 --json name -q '.[].name'`
-- **PR titles** — `gh search prs --owner yourorg --limit 100 --json title -q '.[].title'`
+- **Repository names** — `gh repo list <your-org> --limit 100 --json name -q '.[].name'`
+- **PR titles** — `gh search prs --owner <your-org> --limit 100 --json title -q '.[].title'`
 - **Internal glossary** — acronyms, product names, service names, team names
 - **Tech stack** — frameworks, libraries, tools, infrastructure components
 
