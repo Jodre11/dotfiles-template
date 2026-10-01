@@ -32,8 +32,8 @@ Follow these when adding or modifying scripts and configuration.
   repository in the gitignored `.githooks/*-patterns.local` lists, which the
   hooks read and refuse to commit. A repository can disregard a local identity
   pattern that is its own public identity by putting its exact text in
-  `LOCAL_IDENTITY_IGNORE` in `.githooks/guard-config.sh`, a reviewed commit; the
-  secret-shaped list cannot be opted out of.
+  `LOCAL_IDENTITY_IGNORE` in `.githooks/guard-config.sh`, in a reviewed commit;
+  the secret-shaped list cannot be opted out of.
 - **No private keys on disk** — SSH keys are served by the Bitwarden SSH agent.
   `.gitconfig` references the public key inline for commit signing.
 - **Subprocess env scrubbing** — `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` prevents
