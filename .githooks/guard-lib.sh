@@ -13,15 +13,22 @@ export GIT_NO_REPLACE_OBJECTS=1
 # The optional, gitignored local lists: one POSIX ERE per line, blank and # lines ignored. identity-patterns.local
 # holds identity markers and is exempt only where LOCAL_IDENTITY_EXEMPT_RE says; always-patterns.local holds
 # secret-shaped literals and bites on every path. Neither may ever be committed. They are read from beside these
-# hooks and, when that differs, from the main worktree's .githooks/, found through git's common directory: a linked
-# worktree's checkout holds no untracked file, so without this its commits and pushes would run with no lists.
+# hooks and, when that differs, from the main worktree's .githooks/, the first entry git worktree list gives: a linked
+# worktree's checkout holds no untracked file, so without this its commits and pushes would run with no lists. The
+# directories are compared as physical paths. When the repository's git directory lives apart from its main worktree
+# (git init --separate-git-dir), git cannot name that worktree from a linked one, so the hooks say so instead of
+# silently reading no main-worktree list.
 local_list_dirs=("$guard_dir")
-guard_common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
-if [ "${guard_common_dir##*/}" = .git ] && [ -d "${guard_common_dir%/.git}/.githooks" ]; then
-    guard_main_dir="$(cd "${guard_common_dir%/.git}/.githooks" && pwd)"
-    if [ "$guard_main_dir" != "$guard_dir" ]; then
+guard_main_root=$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p' || true)
+if [ -n "$guard_main_root" ] && [ -d "$guard_main_root/.githooks" ]; then
+    guard_main_dir="$(cd "$guard_main_root/.githooks" && pwd -P)"
+    if [ "$guard_main_dir" != "$(cd "$guard_dir" && pwd -P)" ]; then
         local_list_dirs+=("$guard_main_dir")
     fi
+elif [ "$(git rev-parse --absolute-git-dir 2>/dev/null || true)" != \
+    "$(cd "$(git rev-parse --git-common-dir 2>/dev/null || echo .)" && pwd -P)" ]; then
+    echo "⚠ ${hook_name:-Git hook}: cannot find the main worktree from this linked worktree, so its local pattern" \
+        "lists are not read here; put copies (or symlinks) beside these hooks to screen this worktree too." >&2
 fi
 local_list_path_re='^\.githooks/(identity|always)-patterns\.local$'
 
@@ -229,6 +236,14 @@ scan_text() {
     '
 }
 
+# guard_config_is_staged: return 0 when the index holds .githooks/guard-config.sh byte-identical to the copy these hooks
+# read. An unstaged edit there, or a copy the index does not track (removed with git rm --cached, or tracked under
+# another case), must never decide what a scan allows.
+guard_config_is_staged() {
+    git cat-file -e ":.githooks/guard-config.sh" 2>/dev/null &&
+        git cat-file blob ":.githooks/guard-config.sh" | cmp -s - "$guard_dir/guard-config.sh"
+}
+
 # is_local_list <path>: return 0 when <path> names one of the local lists, in any case.
 is_local_list() {
     local lower
@@ -251,13 +266,14 @@ refuse_local_lists() {
 
 # with_pinned_git [NAME=value...] <command> [arg...]: run <command> with git's diff and log output pinned. gitleaks runs
 # git itself: a coloured diff hides every added line, a changed path prefix breaks the anchored path allowlists, rename
-# detection hides content moved out of an allowlisted path, log.showRoot=false hides a root commit's whole diff, and
-# another i18n.logOutputEncoding re-encodes every message the scans read. git -c settings arrive in
+# detection hides content moved out of an allowlisted path, log.showRoot=false hides a root commit's whole diff,
+# another i18n.logOutputEncoding re-encodes every message the scans read, and log.showSignature inserts lines before
+# them. git -c settings arrive in
 # GIT_CONFIG_PARAMETERS, which outranks GIT_CONFIG_COUNT, so it is dropped. The hooks run their own git calls for
 # content gitleaks git cannot read under this same environment, so both read one config and one set of attributes.
 with_pinned_git() {
     env -u GIT_CONFIG_PARAMETERS \
-        GIT_CONFIG_COUNT=9 \
+        GIT_CONFIG_COUNT=10 \
         GIT_CONFIG_KEY_0=color.ui GIT_CONFIG_VALUE_0=never \
         GIT_CONFIG_KEY_1=color.diff GIT_CONFIG_VALUE_1=never \
         GIT_CONFIG_KEY_2=diff.noprefix GIT_CONFIG_VALUE_2=false \
@@ -267,6 +283,7 @@ with_pinned_git() {
         GIT_CONFIG_KEY_6=diff.renames GIT_CONFIG_VALUE_6=false \
         GIT_CONFIG_KEY_7=log.showRoot GIT_CONFIG_VALUE_7=true \
         GIT_CONFIG_KEY_8=i18n.logOutputEncoding GIT_CONFIG_VALUE_8=UTF-8 \
+        GIT_CONFIG_KEY_9=log.showSignature GIT_CONFIG_VALUE_9=false \
         "$@"
 }
 

@@ -36,7 +36,8 @@ is_named_remote() {
 
 # set_range <local-sha> <remote-sha>: set range to the rev-list arguments naming the commits this push publishes, and
 # log_opts to the same arguments as one string for gitleaks' --log-opts, which also shows each merge against its first
-# parent, so gitleaks reads what only a merge adds, and each root commit's whole tree.
+# parent, so gitleaks reads what only a merge adds, each root commit's whole tree, and every blob's own bytes rather
+# than a textconv driver's output.
 set_range() {
     if [[ ! "$2" =~ $zero_re ]] && git cat-file -e "$2^{commit}" 2>/dev/null; then
         range=("$2..$1")
@@ -45,7 +46,7 @@ set_range() {
     else
         range=("$1")
     fi
-    log_opts="--root --diff-merges=first-parent ${range[*]}"
+    log_opts="--root --diff-merges=first-parent --no-textconv ${range[*]}"
 }
 
 # tag_text <tag-sha>: print the tag's tagger line ("tagger -" when it has none), then its name line, then its message,
@@ -121,10 +122,10 @@ added_paths() {
         --diff-filter=ACMRT "${range[@]}"
 }
 
-# range_blobs: print "<blob-sha> <path>", NUL-terminated, for every blob a commit in range adds, copies, modifies,
-# renames or retypes, except gitlinks and paths BUILTINS_EXEMPT_RE exempts, each blob once. A record not in raw form
-# ends the list with status 1, so the scan fails closed.
-range_blobs() {
+# range_blob_records: print "<blob-sha> <path>", NUL-terminated, for every blob a commit in range adds, copies,
+# modifies, renames or retypes, except gitlinks and paths BUILTINS_EXEMPT_RE exempts. A record not in raw form ends
+# the list with status 1, so the scan fails closed.
+range_blob_records() {
     local meta path rest new_mode new_sha
     with_pinned_git git log --root -z --raw --no-abbrev --format= --no-renames --diff-merges=first-parent \
         --diff-filter=ACMRT "${range[@]}" |
@@ -147,7 +148,12 @@ range_blobs() {
                 continue
             fi
             printf '%s %s\0' "$new_sha" "$path"
-        done | LC_ALL=C sort -z -u -k1,1
+        done
+}
+
+# range_blobs: print range_blob_records' records with each blob once, for the passes that read content alone.
+range_blobs() {
+    range_blob_records | LC_ALL=C sort -z -u -k1,1
 }
 
 # blob_stream: read "<blob-sha> <path>" records, NUL-terminated, on standard input and print each blob followed by a
@@ -212,42 +218,50 @@ scan_with_gitleaks() {
             "Rewrite the commits to remove it. For a false positive, commit a targeted [[allowlists]] entry to" \
             ".gitleaks.toml first."
     fi
-    tip_config="$cfg_dir/.gitleaks.toml"
+    tip_cfg_dir="$cfg_dir"
 }
 
-# opaque_paths: print, one per line, each path a commit in range adds whose content gitleaks git does not read as
-# text: one git diffs as binary there (a NUL byte, UTF-16, a binary or -diff attribute), and one other than
-# .gitleaks.toml whose name holds gitleaks.toml in any case, which gitleaks' default allowlist skips. .gitleaks.toml
-# itself defines the rules, so it would match them; the pattern scan and the built-ins pass read it. A path holding a
-# newline is left to the caller.
-opaque_paths() {
-    local rec path tab=$'\t'
-    {
-        with_pinned_git git log --root -z --numstat --format= --no-renames --diff-merges=first-parent \
-            --diff-filter=ACMRT "${range[@]}" |
-            while IFS= read -r -d '' rec; do
-                rec=${rec#$'\n'}
-                case "$rec" in
-                    "-$tab-$tab"*) printf '%s\n' "${rec#"-$tab-$tab"}" ;;
-                esac
-            done
-        added_paths |
-            while IFS= read -r -d '' path; do
-                case "$path" in
-                    .gitleaks.toml) ;;
-                    *[Gg][Ii][Tt][Ll][Ee][Aa][Kk][Ss].[Tt][Oo][Mm][Ll]*) printf '%s\n' "$path" ;;
-                esac
-            done
-    } | LC_ALL=C sort -u
+# binary_paths: print, one per line, each path a commit in range adds whose content git diffs as binary there (a NUL
+# byte, UTF-16, a binary or -diff attribute), judged in the environment gitleaks git runs in (from tip_cfg_dir with
+# GIT_DIR set, so no working-tree .gitattributes applies, as for it).
+binary_paths() {
+    local rec tab=$'\t'
+    (cd "$tip_cfg_dir" && with_pinned_git GIT_DIR="$git_dir" git log --root -z --numstat --no-textconv --format= \
+        --no-renames --diff-merges=first-parent --diff-filter=ACMRT "${range[@]}") |
+        while IFS= read -r -d '' rec; do
+            rec=${rec#$'\n'}
+            case "$rec" in
+                "-$tab-$tab"*) printf '%s\n' "${rec#"-$tab-$tab"}" ;;
+            esac
+        done
+}
+
+# config_named_paths: print, one per line, each path other than .gitleaks.toml that a commit in range adds whose name
+# holds gitleaks.toml in any case, which gitleaks' default allowlist skips. .gitleaks.toml itself defines the rules, so
+# it would match them; the pattern scan and the built-ins pass read it.
+config_named_paths() {
+    local path
+    added_paths |
+        while IFS= read -r -d '' path; do
+            case "$path" in
+                .gitleaks.toml) ;;
+                *[Gg][Ii][Tt][Ll][Ee][Aa][Kk][Ss].[Tt][Oo][Mm][Ll]*) printf '%s\n' "$path" ;;
+            esac
+        done
 }
 
 # scan_opaque_blobs <ref>: run gitleaks stdin, under the config committed at the pushed tip, over every pushed blob at
-# a path opaque_paths lists (and at any path holding a newline), NUL bytes dropped so UTF-16 text reads as ASCII, from
-# scan_dir, so no .gitleaksignore applies. Its custom rules otherwise never see such content when the pattern scan is
-# skipped. Exit 1 naming the path on a finding; there is no bypass.
+# a path gitleaks git does not read as text (binary_paths, config_named_paths, and any path holding a newline), NUL
+# bytes dropped so UTF-16 text reads as ASCII, from scan_dir, so no .gitleaksignore applies. Its custom rules
+# otherwise never see such content when the pattern scan is skipped. Every (blob, path) pair is checked, so a blob
+# also pushed at an ordinary path is still scanned. Each list is built by a plain command, so a failing git call
+# stops the push. Exit 1 naming the path on a finding; there is no bypass.
 scan_opaque_blobs() {
-    local opaque rec sha path
-    opaque=$(opaque_paths)
+    local opaque binary named rec sha path
+    binary=$(binary_paths)
+    named=$(config_named_paths)
+    opaque="$binary"$'\n'"$named"
+    range_blob_records | LC_ALL=C sort -z -u >"$scan_dir/blob-records"
     while IFS= read -r -d '' rec; do
         sha=${rec%% *}
         path=${rec#* }
@@ -260,13 +274,13 @@ scan_opaque_blobs() {
                 esac
                 ;;
         esac
-        if ! git cat-file blob "$sha" | LC_ALL=C tr -d '\000' |
-            in_scan_dir gitleaks stdin --no-banner --redact --ignore-gitleaks-allow --config "$tip_config"; then
+        if ! git cat-file blob "$sha" | LC_ALL=C tr -d '\000' | in_scan_dir gitleaks stdin --no-banner --redact \
+            --ignore-gitleaks-allow --config "$tip_cfg_dir/.gitleaks.toml"; then
             guard_fail "" "❌ Pre-push: gitleaks found a secret in $path (blob ${sha:0:12}), which $1 would publish." \
                 "gitleaks git cannot read it as text (binary, or a name it allowlists by default), so it scanned the" \
                 "blob directly, where no path allowlist applies. There is no bypass: rewrite the commits to remove it."
         fi
-    done < <(range_blobs)
+    done <"$scan_dir/blob-records"
 }
 
 refs=()
@@ -282,6 +296,10 @@ if command -v gitleaks >/dev/null 2>&1; then
 else
     echo "⚠ gitleaks not found — skipping the generic secret scan. Install: brew install gitleaks" >&2
 fi
+if ! guard_config_is_staged; then
+    guard_fail "❌ Pre-push: .githooks/guard-config.sh differs from its staged copy, or is not staged, and its" \
+        "patterns and exemptions decide every scan. Commit or restore it, then push again."
+fi
 if [ "${SKIP_PATTERN_SCAN:-0}" = "1" ]; then
     echo "⚠ SKIP_PATTERN_SCAN=1 — skipping the pattern scan; gitleaks still runs." >&2
 else
@@ -295,16 +313,16 @@ for entry in ${refs[@]+"${refs[@]}"}; do
         continue
     fi
     peel_ref "$local_sha" "$local_ref"
-    if git cat-file -e "$target:.githooks/guard-config.sh" 2>/dev/null &&
-        ! git cat-file blob "$target:.githooks/guard-config.sh" | cmp -s - "$hook_dir/guard-config.sh"; then
-        guard_fail "❌ Pre-push: the .githooks/guard-config.sh committed at $local_ref's tip differs from the one" \
-            "these hooks read, whose patterns and exemptions would decide its scan. Push it from a checkout of that" \
-            "commit."
-    fi
     set_range "$target" "$remote_sha"
     count=$(git rev-list --count "${range[@]}")
     if [ "$count" = 0 ]; then
         continue
+    fi
+    if git cat-file -e "$target:.githooks/guard-config.sh" 2>/dev/null &&
+        ! git cat-file blob "$target:.githooks/guard-config.sh" | cmp -s - "$hook_dir/guard-config.sh"; then
+        guard_fail "❌ Pre-push: the .githooks/guard-config.sh committed at $local_ref's tip differs from the one" \
+            "these hooks read, whose patterns and exemptions would decide the scan of its commits. Merge or rebase" \
+            "it onto the current guard-config.sh, or push it with that commit checked out."
     fi
     scanned=$((scanned + count))
     if ! added_paths | refuse_local_lists "a commit for $local_ref adds"; then

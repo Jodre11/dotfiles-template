@@ -105,6 +105,27 @@ raw_commit "$d" .githooks/guard-config.sh "# side change"
 push_to "$d" origin side
 check "pre-push accepts a ref whose committed guard-config.sh is the one in use" 0 "$rc"
 d=$(push_repo)
+raw_commit "$d" .githooks/guard-config.sh "# a change"
+push_to "$d" origin main
+git -C "$d" tag old main~1
+push_to "$d" origin old
+check "pre-push allows a tag of a pushed commit after guard-config.sh changes" 0 "$rc"
+git -C "$d" branch at-old main~1
+push_to "$d" origin at-old
+check "pre-push allows a new branch at a pushed commit after guard-config.sh changes" 0 "$rc"
+d=$(push_repo)
+printf '%s\n' "# an unstaged change" >>"$d/.githooks/guard-config.sh"
+git -C "$d" tag v1
+push_to "$d" origin v1
+check "pre-push refuses while guard-config.sh differs from its staged copy" 1 "$rc"
+d=$(push_repo)
+git -C "$d" rm -q --cached .githooks/guard-config.sh
+git -C "$d" -c core.hooksPath=/dev/null commit -q -m "untrack the config"
+printf '%s\n' "# an edit" >>"$d/.githooks/guard-config.sh"
+raw_commit "$d" notes.md "clean line"
+push_to "$d" origin main
+check "pre-push refuses while guard-config.sh is not in the index" 1 "$rc"
+d=$(push_repo)
 raw_commit "$d" .gitleaks.toml "# account \`$digits\`"
 push_to "$d" origin main
 check "pre-push refuses a secret-shaped value in .gitleaks.toml" 1 "$rc"
@@ -390,6 +411,28 @@ if have_gitleaks "pre-push gitleaks rows"; then
     raw_commit "$d" notes.dat "account \`$digits\`"
     push_env "$d" SKIP_PATTERN_SCAN=1 origin main
     check "gitleaks' custom rules scan a blob behind a textconv driver" 1 "$rc"
+    d=$(push_repo)
+    raw_commit "$d" .gitattributes 'wide.txt diff'
+    printf 'x\000account `%s`\n' "$digits" >"$d/wide.txt"
+    git -C "$d" add -f wide.txt
+    git -C "$d" -c core.hooksPath=/dev/null commit -q -m wide
+    push_env "$d" SKIP_PATTERN_SCAN=1 origin main
+    check "a committed diff attribute cannot hide NUL content from gitleaks' custom rules" 1 "$rc"
+    d=$(push_repo)
+    git -C "$d" config diff.hide.textconv true
+    mkdir -p "$d/.git/info"
+    printf '%s\n' '*.dat diff=hide' >"$d/.git/info/attributes"
+    raw_commit "$d" notes.dat "account \`$digits\`"
+    push_env "$d" SKIP_PATTERN_SCAN=1 origin main
+    check "a textconv driver from info/attributes cannot hide content from gitleaks" 1 "$rc"
+    d=$(push_repo)
+    mkdir -p "$d/projects/p/memory"
+    printf 'see %s\n' "$word" >"$d/zz.gitleaks.toml"
+    cp "$d/zz.gitleaks.toml" "$d/projects/p/memory/m.md"
+    git -C "$d" add -f zz.gitleaks.toml projects/p/memory/m.md
+    git -C "$d" -c core.hooksPath=/dev/null commit -q -m dup
+    push_env "$d" SKIP_PATTERN_SCAN=1 origin main
+    check "the opaque pass scans a pushed blob at every path it is at" 1 "$rc"
     d=$(push_repo)
     raw_commit "$d" docs/old.gitleaks.toml "account \`$digits\`"
     push_env "$d" SKIP_PATTERN_SCAN=1 origin main
