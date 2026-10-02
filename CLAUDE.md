@@ -10,10 +10,16 @@ configure machine-specific Claude Code settings.
 
 ## Key Rules
 
-- After editing any config file in this repo (or its symlinked target in `~`),
-  remind the user to commit and push the changes
+- After editing any config file in this repo, remind the user to commit and push
+  the changes
 - After installing or removing a Homebrew package, remind the user to regenerate
-  the Brewfile: `brew bundle dump --file=~/dotfiles/Brewfile --force`
+  the Brewfile: `brew bundle dump --file=~/dotfiles/Brewfile --force`. The dump
+  lists only Homebrew-installed packages and silently drops entries for anything
+  installed by other means (e.g. Docker Desktop, Chrome, JetBrains Toolbox): diff
+  the Brewfile afterwards and restore any removed entry kept deliberately for
+  new-machine provisioning
+- Personal additions go in `~/.gitconfig.local` and `~/.ssh/config.local`, which
+  the tracked configs include, never in a `.tmpl`
 - Do not add secrets, SSH keys, or credentials to this repo
 - Keep `bootstrap.sh` idempotent — every command must be safe to re-run
 - When adding a new config file, create a new Stow package following the existing
@@ -46,6 +52,11 @@ Files with sensitive content use `.tmpl` extensions with `__PLACEHOLDER__` token
 `hydrate.sh` reads `config.env` and produces real files. Run `hydrate.sh` before
 `stow` — the generated files are what get symlinked into `~`.
 
+To change a generated file, edit its `.tmpl`, preview with `./hydrate.sh --diff`,
+run `./hydrate.sh`, and commit the `.tmpl`: a direct edit to the generated file is
+lost on the next hydrate. Stowed files with no `.tmpl` are symlinks, so editing
+them in `~` changes this repo.
+
 ## SSH Keys
 
 SSH keys are stored in the Bitwarden vault and served via the Bitwarden SSH
@@ -55,3 +66,13 @@ agent. There are no private key files on disk.
   configured in `config.env`
 - `.gitconfig` uses an inline public key for commit signing. The Bitwarden
   desktop app must be running and unlocked for SSH operations to work.
+
+## Maintaining this seed
+
+If `origin` is the upstream `dotfiles-template` repository rather than your
+private copy, this checkout is the public seed: change it by PR only and land
+nothing personal, organisation-specific or machine-specific. Before opening a
+PR, run the checks CI runs: `bash tests/test-hydrate.sh`,
+`bash tests/test-git-guards.sh`, `bash tests/test-pre-push.sh`,
+`bash tests/test-history-push.sh`, `bash tests/test-output-ignore-check.sh`, and
+`shellcheck --severity=warning` over the shell scripts (a Key Rule above).
