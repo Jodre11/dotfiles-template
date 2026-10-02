@@ -1,6 +1,6 @@
 # Dotfiles Template
 
-Fork-ready macOS dotfiles managed with [GNU Stow](https://www.gnu.org/software/stow/),
+A GitHub template for macOS dotfiles managed with [GNU Stow](https://www.gnu.org/software/stow/),
 idempotent bootstrap, push-to-talk whisper dictation, and a `config.env` placeholder
 strategy for keeping sensitive values out of version control.
 
@@ -40,12 +40,20 @@ strategy for keeping sensitive values out of version control.
 
 ## Getting Started
 
-### 1. Fork and clone
+### 1. Create a private copy and clone it
+
+On GitHub, choose **Use this template → Create a new repository** and set its visibility to
+**Private**. Do not fork: a fork of a public repository is public, and your copy will come to hold
+your own accounts, hosts and email addresses. Then clone it as `~/dotfiles`:
 
 ```bash
 git clone git@github.com:youruser/dotfiles.git ~/dotfiles
 cd ~/dotfiles
 ```
+
+A template copy shares no history with this repository. To take later updates, add it as a
+remote named `template` (the pre-push hook refuses pushes to it); the first merge needs
+`--allow-unrelated-histories`.
 
 ### 2. Configure
 
