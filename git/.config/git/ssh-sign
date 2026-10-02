@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# ssh-sign — git's gpg.ssh.program. Runs ssh-keygen to sign commits, first pointing
+# SSH_AUTH_SOCK at the agent ~/.ssh/config names for github.com when it is unset. Tool
+# subprocesses that scrub credential variables (Claude Code's CLAUDE_CODE_SUBPROCESS_ENV_SCRUB)
+# drop SSH_AUTH_SOCK, and ssh-keygen, unlike ssh, never reads IdentityAgent itself.
+set -euo pipefail
+
+if [[ -z "${SSH_AUTH_SOCK:-}" ]]; then
+    agent=$(ssh -G github.com 2>/dev/null | awk '$1 == "identityagent" { print $2; exit }') || agent=""
+    if [[ -n "$agent" && -S "$agent" ]]; then
+        export SSH_AUTH_SOCK="$agent"
+    fi
+fi
+
+exec ssh-keygen "$@"
