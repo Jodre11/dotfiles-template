@@ -202,13 +202,15 @@ claude() {
     while tmux has-session -t "$session" 2>/dev/null; do
         session=$("$HOME/.claude/scripts/derive-claude-slug.sh")
     done
+    # One command string: given several arguments, tmux runs them directly without a shell.
     tmux new-session -s "$session" \
-        "source ~/.claudeenv; exec command claude --model opus --fallback-model \$BEDROCK_OPUS_FALLBACK_ARNS --exclude-dynamic-system-prompt-sections ${(q)@}"
+        "source ~/.claudeenv; exec command claude --model opus --fallback-model \$BEDROCK_OPUS_FALLBACK_ARNS --exclude-dynamic-system-prompt-sections ${(j: :)${(q)@}}"
 }
 # Launch Claude Code with a personal Pro subscription (no Bedrock).
 # Strips Bedrock env vars so Claude falls back to OAuth login.
 # Wraps in tmux like claude() but skips the SSO preflight.
 claude-personal() {
+    # `env … claude` already runs the binary (env never sees functions); Linux has no /usr/bin/command.
     local strip=(
         -u CLAUDE_CODE_USE_BEDROCK
         -u ANTHROPIC_MODEL
@@ -231,15 +233,15 @@ claude-personal() {
     )
     for arg in "${pass_through[@]}"; do
         if [[ "$1" == "$arg" ]]; then
-            env "${strip[@]}" command claude "$@"
+            env "${strip[@]}" claude "$@"
             return
         fi
     done
 
     # Pre-authenticate outside tmux so the browser OAuth redirect works.
-    if ! env "${strip[@]}" command claude auth status &>/dev/null; then
+    if ! env "${strip[@]}" claude auth status &>/dev/null; then
         echo "Personal account authentication required..."
-        env "${strip[@]}" command claude auth login || return 1
+        env "${strip[@]}" claude auth login || return 1
     fi
 
     # Personal-account variant uses prefix `p` so it's distinguishable from
@@ -249,8 +251,9 @@ claude-personal() {
     while tmux has-session -t "$session" 2>/dev/null; do
         session=$("$HOME/.claude/scripts/derive-claude-slug.sh" "" p)
     done
+    # One command string: given several arguments, tmux runs them directly without a shell.
     tmux new-session -s "$session" \
-        "tmux set-option status-style 'bg=#eda6c2,fg=black'; unset CLAUDE_CODE_USE_BEDROCK ANTHROPIC_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION BEDROCK_OPUS_FALLBACK_ARNS CLAUDE_CODE_MAX_OUTPUT_TOKENS AWS_PROFILE AWS_REGION; exec command claude --model opus --exclude-dynamic-system-prompt-sections ${(q)@}"
+        "tmux set-option status-style 'bg=#eda6c2,fg=black'; unset CLAUDE_CODE_USE_BEDROCK ANTHROPIC_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION BEDROCK_OPUS_FALLBACK_ARNS CLAUDE_CODE_MAX_OUTPUT_TOKENS AWS_PROFILE AWS_REGION; exec command claude --model opus --exclude-dynamic-system-prompt-sections ${(j: :)${(q)@}}"
 }
 
 alias cat='bat --paging=never'

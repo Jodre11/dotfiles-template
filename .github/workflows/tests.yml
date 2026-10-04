@@ -18,10 +18,10 @@ jobs:
         with:
           # tests/test-history-push.sh pushes the whole history through the pre-push.
           fetch-depth: 0
-      - name: Install jq
+      - name: Install jq and zsh
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y jq
+          sudo apt-get install -y jq zsh
       - name: Install gitleaks 8.30.1
         # The git-guard tests skip without gitleaks; the tarball is pinned by its release checksum.
         env:
@@ -43,3 +43,5 @@ jobs:
         run: bash tests/test-history-push.sh
       - name: Run the output-ignore check tests
         run: bash tests/test-output-ignore-check.sh
+      - name: Run the claude wrapper tests
+        run: bash tests/test-claude-wrapper.sh
