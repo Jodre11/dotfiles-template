@@ -168,29 +168,52 @@ export PATH="$HOME/.aspire/bin:$PATH"
 
 [ -f "$HOME/.claudeenv" ] && source "$HOME/.claudeenv"
 
-# Always run Claude Code inside tmux for detach/reattach support.
+# Classify claude's arguments into REPLY: bare (a subcommand, help or version: run as given), direct (a print or
+# background session: run here with the wrapper's flags) or tmux (an interactive session).
+_claude_mode() {
+    local subcommands=(
+        agents attach auth auto-mode doctor gateway import install kill logs mcp plugin plugins purge respawn rm
+        setup-token stop ultrareview update upgrade
+    )
+    REPLY=tmux
+    if (( ${subcommands[(Ie)$1]} )); then
+        REPLY=bare
+        return
+    fi
+    local arg
+    for arg in "$@"; do
+        case $arg in
+            -h|--help|-v|--version) REPLY=bare; return ;;
+            -p|--print|--bg|--background) REPLY=direct ;;
+        esac
+    done
+}
+
+# Run interactive Claude Code sessions inside tmux for detach/reattach support.
 # Claude sets the terminal title via --name or /name; a tmux hook
 # syncs the pane title to the tmux session name automatically.
 # Session-level hooks survive renames because tmux binds them to
 # the session object, not the name.
 claude() {
-    # Non-session subcommands and flags — pass straight through.
-    local pass_through=(
-        -v --version -h --help
-        agents auth auto-mode doctor install
-        mcp plugin plugins setup-token update upgrade
-    )
-    for arg in "${pass_through[@]}"; do
-        if [[ "$1" == "$arg" ]]; then
-            command claude "$@"
-            return
-        fi
-    done
+    local mode
+    _claude_mode "$@"
+    mode=$REPLY
+    if [[ $mode == bare ]]; then
+        command claude "$@"
+        return
+    fi
 
     # Pre-flight: ensure SSO token is valid before launching.
     # Avoids the AWS SDK hang on expired tokens (Claude Code issue #28032).
     if [[ -x "$HOME/.claude/scripts/aws-sso-preflight.sh" ]]; then
         "$HOME/.claude/scripts/aws-sso-preflight.sh"
+    fi
+
+    # An empty fallback must yield no word, or --fallback-model takes the next flag as its value.
+    if [[ $mode == direct ]]; then
+        command claude --model opus ${BEDROCK_OPUS_FALLBACK_ARNS:+--fallback-model=$BEDROCK_OPUS_FALLBACK_ARNS} \
+            --exclude-dynamic-system-prompt-sections "$@"
+        return
     fi
 
     # Slug is c-<abbrev>-<4hex>, derived from the cwd basename + a random
@@ -202,9 +225,10 @@ claude() {
     while tmux has-session -t "$session" 2>/dev/null; do
         session=$("$HOME/.claude/scripts/derive-claude-slug.sh")
     done
-    # One command string: given several arguments, tmux runs them directly without a shell.
+    # One command string: given several arguments, tmux runs them directly without a shell. The fallback expands in
+    # the pane, after ~/.claudeenv.
     tmux new-session -s "$session" \
-        "source ~/.claudeenv; exec command claude --model opus --fallback-model \$BEDROCK_OPUS_FALLBACK_ARNS --exclude-dynamic-system-prompt-sections ${(j: :)${(q)@}}"
+        "source ~/.claudeenv; exec command claude --model opus \${BEDROCK_OPUS_FALLBACK_ARNS:+--fallback-model=\$BEDROCK_OPUS_FALLBACK_ARNS} --exclude-dynamic-system-prompt-sections ${(j: :)${(q)@}}"
 }
 # Launch Claude Code with a personal Pro subscription (no Bedrock).
 # Strips Bedrock env vars so Claude falls back to OAuth login.
@@ -224,24 +248,24 @@ claude-personal() {
         -u AWS_REGION
     )
 
-    # Non-session subcommands — pass straight through (no tmux needed, but
-    # still strip Bedrock env vars so auth/doctor/etc. target personal account).
-    local pass_through=(
-        -v --version -h --help
-        agents auth auto-mode doctor install
-        mcp plugin plugins setup-token update upgrade
-    )
-    for arg in "${pass_through[@]}"; do
-        if [[ "$1" == "$arg" ]]; then
-            env "${strip[@]}" claude "$@"
-            return
-        fi
-    done
+    # Outside tmux, still strip Bedrock env vars so auth/doctor/-p/etc. target the personal account.
+    local mode
+    _claude_mode "$@"
+    mode=$REPLY
+    if [[ $mode == bare ]]; then
+        env "${strip[@]}" claude "$@"
+        return
+    fi
 
     # Pre-authenticate outside tmux so the browser OAuth redirect works.
     if ! env "${strip[@]}" claude auth status &>/dev/null; then
         echo "Personal account authentication required..."
         env "${strip[@]}" claude auth login || return 1
+    fi
+
+    if [[ $mode == direct ]]; then
+        env "${strip[@]}" claude --model opus --exclude-dynamic-system-prompt-sections "$@"
+        return
     fi
 
     # Personal-account variant uses prefix `p` so it's distinguishable from
