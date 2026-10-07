@@ -170,7 +170,7 @@ export PATH="$HOME/.aspire/bin:$PATH"
 
 # Classify claude's arguments into REPLY: bare (a subcommand, help or version: run as given), direct (a print or
 # background session: run here with the wrapper's flags) or tmux (an interactive session).
-_claude_mode() {
+claude-arg-mode() {
     local subcommands=(
         agents attach auth auto-mode doctor gateway import install kill logs mcp plugin plugins purge respawn rm
         setup-token stop ultrareview update upgrade
@@ -196,7 +196,7 @@ _claude_mode() {
 # the session object, not the name.
 claude() {
     local mode
-    _claude_mode "$@"
+    claude-arg-mode "$@"
     mode=$REPLY
     if [[ $mode == bare ]]; then
         command claude "$@"
@@ -250,7 +250,7 @@ claude-personal() {
 
     # Outside tmux, still strip Bedrock env vars so auth/doctor/-p/etc. target the personal account.
     local mode
-    _claude_mode "$@"
+    claude-arg-mode "$@"
     mode=$REPLY
     if [[ $mode == bare ]]; then
         env "${strip[@]}" claude "$@"

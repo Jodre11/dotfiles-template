@@ -52,8 +52,14 @@ EOF
 printf '#!/usr/bin/env bash\necho c-test-0000\n' > "$tmp/home/.claude/scripts/derive-claude-slug.sh"
 chmod +x "$tmp/bin/tmux" "$tmp/bin/claude" "$tmp/home/.claude/scripts/derive-claude-slug.sh"
 
-awk '/^_claude_mode\(\) \{$/,/^}$/; /^claude\(\) \{$/,/^}$/; /^claude-personal\(\) \{$/,/^}$/' \
+awk '/^claude-arg-mode\(\) \{$/,/^}$/; /^claude\(\) \{$/,/^}$/; /^claude-personal\(\) \{$/,/^}$/' \
     "$repo_root/zsh/.zshrc.tmpl" > "$tmp/wrappers.zsh"
+
+# Claude Code's shell snapshot drops functions whose names start with _, so a wrapper calling one fails in the ! and
+# Bash-tool shells.
+check "the wrappers call no _-prefixed function" "" \
+    "$(grep -oE '^[[:space:]]+_[[:alnum:]_-]+' "$tmp/wrappers.zsh" | tr -d '[:space:]' || true)"
+check "the argument classifier is extracted" "1" "$(grep -c '^claude-arg-mode() {$' "$tmp/wrappers.zsh" || true)"
 
 # run_wrapper <fallback> <function> [arg...]: run the wrapper with BEDROCK_OPUS_FALLBACK_ARNS=<fallback> both in its
 # environment and in the scratch ~/.claudeenv; leave tmux's argument count, claude's argv and claude's
