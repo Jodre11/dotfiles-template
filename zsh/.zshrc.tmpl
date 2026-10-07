@@ -316,6 +316,18 @@ bup() {
         fi
     done
 
+    # Global npm packages (playwright-cli, language servers) sit outside brew.
+    # Install each outdated one at its latest version rather than `npm update -g`,
+    # which treats globals as caret ranges and so can stop short of a new major.
+    # --parseable's fourth field is "<name>@<latest>".
+    local -a npm_latest
+    npm_latest=("${(@f)$(npm outdated --global --parseable 2>/dev/null | cut -d: -f4)}")
+    npm_latest=("${(@)npm_latest:#}")
+    if (( ${#npm_latest} )); then
+        echo "Updating global npm packages: ${npm_latest[*]}"
+        npm install --global "${npm_latest[@]}"
+    fi
+
     # --greedy-latest re-downloads whole cask DMGs on every run and never prunes
     # them, so the cache grows by hundreds of MB per upgrade without this.
     brew cleanup --prune=all
