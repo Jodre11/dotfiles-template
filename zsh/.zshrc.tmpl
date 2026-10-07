@@ -247,6 +247,8 @@ claude-personal() {
         -u AWS_PROFILE
         -u AWS_REGION
     )
+    # The work Datadog MCP must not feed work observability data into a personal-account session.
+    local settings='{"disabledMcpjsonServers":["datadog"]}'
 
     # Outside tmux, still strip Bedrock env vars so auth/doctor/-p/etc. target the personal account.
     local mode
@@ -264,7 +266,7 @@ claude-personal() {
     fi
 
     if [[ $mode == direct ]]; then
-        env "${strip[@]}" claude --model opus --exclude-dynamic-system-prompt-sections "$@"
+        env "${strip[@]}" claude --model opus --settings "$settings" --exclude-dynamic-system-prompt-sections "$@"
         return
     fi
 
@@ -277,7 +279,7 @@ claude-personal() {
     done
     # One command string: given several arguments, tmux runs them directly without a shell.
     tmux new-session -s "$session" \
-        "tmux set-option status-style 'bg=#eda6c2,fg=black'; unset CLAUDE_CODE_USE_BEDROCK ANTHROPIC_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION BEDROCK_OPUS_FALLBACK_ARNS CLAUDE_CODE_MAX_OUTPUT_TOKENS AWS_PROFILE AWS_REGION; exec command claude --model opus --exclude-dynamic-system-prompt-sections ${(j: :)${(q)@}}"
+        "tmux set-option status-style 'bg=#eda6c2,fg=black'; unset CLAUDE_CODE_USE_BEDROCK ANTHROPIC_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION BEDROCK_OPUS_FALLBACK_ARNS CLAUDE_CODE_MAX_OUTPUT_TOKENS AWS_PROFILE AWS_REGION; exec command claude --model opus --settings ${(q)settings} --exclude-dynamic-system-prompt-sections ${(j: :)${(q)@}}"
 }
 
 alias cat='bat --paging=never'

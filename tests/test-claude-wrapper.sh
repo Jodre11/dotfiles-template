@@ -85,6 +85,8 @@ args=(--resume abc --fork-session -n "two words" "semi;colon" "it's" '$(id)')
 want_args=$(printf '%s\n' "${args[@]}")
 work_flags=$(printf '%s\n' --model opus --fallback-model=fallback-arn --exclude-dynamic-system-prompt-sections)
 plain_flags=$(printf '%s\n' --model opus --exclude-dynamic-system-prompt-sections)
+personal_flags=$(printf '%s\n' --model opus --settings '{"disabledMcpjsonServers":["datadog"]}' \
+    --exclude-dynamic-system-prompt-sections)
 
 run_wrapper fallback-arn claude
 check "claude, no arguments: tmux gets one command string" "1" "$(result tmux-argc)"
@@ -140,13 +142,13 @@ check "claude -p, empty fallback: no --fallback-model and the prompt intact" \
 run_wrapper fallback-arn claude-personal "${args[@]}"
 check "claude-personal, eight arguments: tmux gets one command string" "1" "$(result tmux-argc)"
 check "claude-personal, eight arguments: claude gets each argument intact" \
-    "$plain_flags"$'\n'"$want_args" "$(result claude-argv)"
+    "$personal_flags"$'\n'"$want_args" "$(result claude-argv)"
 check "claude-personal, eight arguments: Bedrock environment stripped" "<unset>" "$(result claude-bedrock)"
 
 run_wrapper fallback-arn claude-personal --resume abc -p "say ok"
 check "claude-personal -p: runs outside tmux" "<missing>" "$(result tmux-argc)"
 check "claude-personal -p: claude gets the wrapper's flags and each argument" \
-    "$plain_flags"$'\n'--resume$'\n'abc$'\n'-p$'\n'"say ok" "$(result claude-argv)"
+    "$personal_flags"$'\n'--resume$'\n'abc$'\n'-p$'\n'"say ok" "$(result claude-argv)"
 check "claude-personal -p: Bedrock environment stripped" "<unset>" "$(result claude-bedrock)"
 
 run_wrapper fallback-arn claude-personal mcp list

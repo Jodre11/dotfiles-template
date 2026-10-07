@@ -47,8 +47,8 @@ export CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1
 # Auto-update Claude Code on session start (npm/Homebrew/etc., based on installation method)
 export CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE=1
 
-# Opt into the deterministic multi-agent Workflow tool (gated; also requires server-side
-# tengu_workflows_enabled flag, so may be a no-op on Bedrock until enabled there)
+# Turns the Workflow tool on by default for a personal Pro account; on Bedrock the server-side flag decides, so
+# there this has no effect
 export CLAUDE_CODE_WORKFLOWS=1
 
 # Enable Auto permission mode on Bedrock/Vertex/Foundry (Opus 4.7+, verified on Opus 5). Added
