@@ -232,10 +232,6 @@ echo "Installing npm global tools..."
 npm install -g "${NPM_GLOBAL_TOOLS[@]}"
 
 # ---------- pipx tools ----------
-if ! pipx list | grep -q "it2"; then
-    echo "Installing it2 (iTerm2 shell integration)..."
-    pipx install it2
-fi
 if ! pipx list | grep -q "markitdown"; then
     echo "Installing markitdown (document-to-Markdown converter)..."
     pipx install "markitdown[all]"
