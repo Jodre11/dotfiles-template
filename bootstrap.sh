@@ -236,6 +236,10 @@ if ! pipx list | grep -q "it2"; then
     echo "Installing it2 (iTerm2 shell integration)..."
     pipx install it2
 fi
+if ! pipx list | grep -q "markitdown"; then
+    echo "Installing markitdown (document-to-Markdown converter)..."
+    pipx install "markitdown[all]"
+fi
 
 # ---------- Terraform via tenv ----------
 # tenv (installed by brew bundle) manages Terraform versions and provides the
