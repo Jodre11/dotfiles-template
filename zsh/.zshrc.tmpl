@@ -145,9 +145,24 @@ export BW_SERVE_URL="http://localhost:8087"
 
 export DOTNET_ROOT=/usr/local/share/dotnet
 export PATH=$PATH:$DOTNET_ROOT/tools:$HOME/.dotnet/tools
-# NuGet PAT via envchain (configure NUGET_NAMESPACE in config.env)
+# The NuGet PAT stays in the Keychain: these shims, like a work claude() session, read it through envchain per call,
+# so no shell exports it. Anything else needing it (docker build --build-arg, a script that spawns dotnet) takes
+# `envchain __NUGET_NAMESPACE__ …` by hand.
 if [[ -n "__NUGET_NAMESPACE__" ]]; then
-    export $(envchain __NUGET_NAMESPACE__ env | grep _NUGET_PAT) 2>/dev/null
+    dotnet() {
+        if [[ -n $CLAUDECODE ]]; then
+            command dotnet "$@"
+            return
+        fi
+        envchain __NUGET_NAMESPACE__ dotnet "$@"
+    }
+    jb() {
+        if [[ -n $CLAUDECODE ]]; then
+            command jb "$@"
+            return
+        fi
+        envchain __NUGET_NAMESPACE__ jb "$@"
+    }
 fi
 export AWS_REGION='__AWS_REGION__'
 export PATH="$(brew --prefix llvm)/bin:$PATH"
@@ -165,8 +180,6 @@ source $HOME/.localstack/localstack_setup.sh
 
 # Added by get-aspire-cli.sh
 export PATH="$HOME/.aspire/bin:$PATH"
-
-[ -f "$HOME/.claudeenv" ] && source "$HOME/.claudeenv"
 
 # Classify claude's arguments into REPLY: bare (a subcommand, help or version: run as given), direct (a print or
 # background session: run here with the wrapper's flags) or tmux (an interactive session).
@@ -189,18 +202,69 @@ claude-arg-mode() {
     done
 }
 
+# Set reply to the variables a personal session must not inherit: every name ~/.claudeenv exports, AWS_PROFILE and
+# each *_NUGET_PAT parameter (either may have been exported by hand).
+claude-work-vars() {
+    reply=()
+    local line re='^[[:space:]]*export[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)='
+    if [[ -r $HOME/.claudeenv ]]; then
+        while IFS= read -r line; do
+            if [[ $line =~ $re ]]; then
+                reply+=("$match[1]")
+            fi
+        done < "$HOME/.claudeenv"
+    fi
+    reply+=(AWS_PROFILE ${(M)${(k)parameters}:#*_NUGET_PAT})
+    reply=("${(@u)reply}")
+}
+
+# Set reply to the provider-neutral flags Claude Code reads before settings load; both wrappers put them on the
+# launch line.
+claude-launch-env() {
+    reply=(
+        CLAUDE_CODE_NO_FLICKER=1
+        CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE=1
+        CLAUDE_CODE_WORKFLOWS=1
+        CLAUDE_CODE_ENABLE_AUTO_MODE=1
+        ENABLE_LSP_TOOL=1
+    )
+}
+
 # Run interactive Claude Code sessions inside tmux for detach/reattach support.
 # Claude sets the terminal title via --name or /name; a tmux hook
 # syncs the pane title to the tmux session name automatically.
 # Session-level hooks survive renames because tmux binds them to
 # the session object, not the name.
+# The Bedrock environment (~/.claudeenv), the work settings layer and the NuGet PAT reach only the claude process: no
+# interactive shell holds them.
 claude() {
+    # Claude Code's shell snapshot carries this function into its Bash tool, where the session's own environment
+    # decides.
+    if [[ -n $CLAUDECODE ]]; then
+        command claude "$@"
+        return
+    fi
     local mode
     claude-arg-mode "$@"
     mode=$REPLY
     if [[ $mode == bare ]]; then
-        command claude "$@"
+        if [[ -r $HOME/.claudeenv ]]; then
+            (source "$HOME/.claudeenv"; command claude "$@")
+        else
+            echo "claude: ~/.claudeenv is missing (run ~/dotfiles/hydrate.sh); running without Bedrock" >&2
+            command claude "$@"
+        fi
         return
+    fi
+
+    local work_settings=$HOME/.claude/settings.work.json
+    if [[ ! -r $HOME/.claudeenv ]]; then
+        echo "claude: ~/.claudeenv is missing; run ~/dotfiles/hydrate.sh" >&2
+        return 1
+    fi
+    if [[ ! -r $work_settings ]]; then
+        echo "claude: $work_settings is missing; run ~/.claude/scripts/apply-settings.sh" >&2
+        return 1
     fi
 
     # Pre-flight: ensure SSO token is valid before launching.
@@ -209,10 +273,28 @@ claude() {
         "$HOME/.claude/scripts/aws-sso-preflight.sh"
     fi
 
+    # The PAT stays in the Keychain: envchain hands it to the claude process only. Checked here, where a failure
+    # (a locked keychain, a missing namespace) stays visible.
+    local -a launch
+    claude-launch-env
+    launch=(env "${reply[@]}")
+    if [[ -n "__NUGET_NAMESPACE__" ]]; then
+        if envchain __NUGET_NAMESPACE__ true 2>/dev/null; then
+            launch+=(envchain __NUGET_NAMESPACE__)
+        else
+            echo "claude: envchain namespace __NUGET_NAMESPACE__ is unavailable;" \
+                "starting without the NuGet PAT" >&2
+        fi
+    fi
+    launch+=(claude)
+
     # An empty fallback must yield no word, or --fallback-model takes the next flag as its value.
     if [[ $mode == direct ]]; then
-        command claude --model opus ${BEDROCK_OPUS_FALLBACK_ARNS:+--fallback-model=$BEDROCK_OPUS_FALLBACK_ARNS} \
-            --exclude-dynamic-system-prompt-sections "$@"
+        (
+            source "$HOME/.claudeenv"
+            "${launch[@]}" --model opus ${BEDROCK_OPUS_FALLBACK_ARNS:+--fallback-model=$BEDROCK_OPUS_FALLBACK_ARNS} \
+                --settings "$work_settings" --exclude-dynamic-system-prompt-sections "$@"
+        )
         return
     fi
 
@@ -228,29 +310,32 @@ claude() {
     # One command string: given several arguments, tmux runs them directly without a shell. The fallback expands in
     # the pane, after ~/.claudeenv.
     tmux new-session -s "$session" \
-        "source ~/.claudeenv; exec command claude --model opus \${BEDROCK_OPUS_FALLBACK_ARNS:+--fallback-model=\$BEDROCK_OPUS_FALLBACK_ARNS} --exclude-dynamic-system-prompt-sections ${(j: :)${(q)@}}"
+        "source ~/.claudeenv; exec ${(j: :)${(@q)launch}} --model opus \${BEDROCK_OPUS_FALLBACK_ARNS:+--fallback-model=\$BEDROCK_OPUS_FALLBACK_ARNS} --settings ${(q)work_settings} --exclude-dynamic-system-prompt-sections ${(j: :)${(q)@}}"
 }
 # Launch Claude Code with a personal Pro subscription (no Bedrock).
-# Strips Bedrock env vars so Claude falls back to OAuth login.
-# Wraps in tmux like claude() but skips the SSO preflight.
+# Strips every variable ~/.claudeenv exports, plus AWS_PROFILE and any NuGet PAT, so Claude falls back to OAuth
+# login. Wraps in tmux like claude() but skips the SSO preflight.
 claude-personal() {
+    # Claude Code's shell snapshot carries this function into its Bash tool, where the session's own environment
+    # decides.
+    if [[ -n $CLAUDECODE ]]; then
+        command claude "$@"
+        return
+    fi
     # `env … claude` already runs the binary (env never sees functions); Linux has no /usr/bin/command.
-    local strip=(
-        -u CLAUDE_CODE_USE_BEDROCK
-        -u ANTHROPIC_MODEL
-        -u ANTHROPIC_DEFAULT_HAIKU_MODEL
-        -u ANTHROPIC_DEFAULT_SONNET_MODEL
-        -u ANTHROPIC_DEFAULT_OPUS_MODEL
-        -u ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION
-        -u BEDROCK_OPUS_FALLBACK_ARNS
-        -u CLAUDE_CODE_MAX_OUTPUT_TOKENS
-        -u AWS_PROFILE
-        -u AWS_REGION
-    )
+    local -a work_vars strip early
+    local name
+    claude-work-vars
+    work_vars=("${reply[@]}")
+    for name in "${work_vars[@]}"; do
+        strip+=(-u "$name")
+    done
+    claude-launch-env
+    early=("${reply[@]}")
     # The work Datadog MCP must not feed work observability data into a personal-account session.
     local settings='{"disabledMcpjsonServers":["datadog"]}'
 
-    # Outside tmux, still strip Bedrock env vars so auth/doctor/-p/etc. target the personal account.
+    # Outside tmux, still strip the work environment so auth/doctor/-p/etc. target the personal account.
     local mode
     claude-arg-mode "$@"
     mode=$REPLY
@@ -266,7 +351,8 @@ claude-personal() {
     fi
 
     if [[ $mode == direct ]]; then
-        env "${strip[@]}" claude --model opus --settings "$settings" --exclude-dynamic-system-prompt-sections "$@"
+        env "${strip[@]}" "${early[@]}" claude --model opus --settings "$settings" \
+            --exclude-dynamic-system-prompt-sections "$@"
         return
     fi
 
@@ -277,9 +363,10 @@ claude-personal() {
     while tmux has-session -t "$session" 2>/dev/null; do
         session=$("$HOME/.claude/scripts/derive-claude-slug.sh" "" p)
     done
-    # One command string: given several arguments, tmux runs them directly without a shell.
+    # One command string: given several arguments, tmux runs them directly without a shell. The pane inherits the tmux
+    # server's environment, not this shell's, so it strips again.
     tmux new-session -s "$session" \
-        "tmux set-option status-style 'bg=#eda6c2,fg=black'; unset CLAUDE_CODE_USE_BEDROCK ANTHROPIC_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION BEDROCK_OPUS_FALLBACK_ARNS CLAUDE_CODE_MAX_OUTPUT_TOKENS AWS_PROFILE AWS_REGION; exec command claude --model opus --settings ${(q)settings} --exclude-dynamic-system-prompt-sections ${(j: :)${(q)@}}"
+        "tmux set-option status-style 'bg=#eda6c2,fg=black'; unset ${(j: :)${(@q)work_vars}}; exec env ${(j: :)${(@q)early}} claude --model opus --settings ${(q)settings} --exclude-dynamic-system-prompt-sections ${(j: :)${(q)@}}"
 }
 
 alias cat='bat --paging=never'

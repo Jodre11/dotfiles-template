@@ -137,6 +137,7 @@ hydrate_simple() {
 
     # bedrock
     content="${content//__BEDROCK_REGION__/${BEDROCK_REGION:-}}"
+    content="${content//__BEDROCK_AWS_PROFILE__/${BEDROCK_AWS_PROFILE:-}}"
     content="${content//__BEDROCK_DEFAULT_MODEL_ARN__/${BEDROCK_DEFAULT_MODEL_ARN:-}}"
     content="${content//__BEDROCK_HAIKU_ARN__/${BEDROCK_HAIKU_ARN:-}}"
     content="${content//__BEDROCK_SONNET_ARN__/${BEDROCK_SONNET_ARN:-}}"

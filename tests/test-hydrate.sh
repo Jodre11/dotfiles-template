@@ -239,6 +239,14 @@ else
     check "a new output from a plain template is not executable" "no" "no"
 fi
 
+# --- the Bedrock AWS profile and the default region are substituted
+d=$(new_fixture)
+only_zshrc "$d"
+printf '%s\n' 'BEDROCK_AWS_PROFILE=fx-profile' 'AWS_REGION=fx-region' >"$d/config.env"
+printf '%s\n' 'p=__BEDROCK_AWS_PROFILE__ r=__AWS_REGION__' >"$d/zsh/.zshrc.tmpl"
+run_hydrate "$d" ""
+check "__BEDROCK_AWS_PROFILE__ and __AWS_REGION__ are substituted" "p=fx-profile r=fx-region" "$(cat "$d/zsh/.zshrc")"
+
 # --- summary
 echo ""
 echo "$((passes + failures)) checks: $passes passed, $failures failed"
