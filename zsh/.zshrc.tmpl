@@ -202,8 +202,9 @@ claude-arg-mode() {
     done
 }
 
-# Set reply to the variables a personal session must not inherit: every name ~/.claudeenv exports, AWS_PROFILE and
-# each *_NUGET_PAT parameter (either may have been exported by hand).
+# Set reply to the variables a personal session must not inherit: every name ~/.claudeenv exports, AWS_PROFILE,
+# CLAUDE_CODE_USE_BEDROCK and each *_NUGET_PAT held by this shell or the tmux server (a pane inherits the server's
+# environment; any of these may have been exported by hand).
 claude-work-vars() {
     reply=()
     local line re='^[[:space:]]*export[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)='
@@ -214,7 +215,15 @@ claude-work-vars() {
             fi
         done < "$HOME/.claudeenv"
     fi
-    reply+=(AWS_PROFILE ${(M)${(k)parameters}:#*_NUGET_PAT})
+    reply+=(AWS_PROFILE CLAUDE_CODE_USE_BEDROCK ${(M)${(k)parameters}:#*_NUGET_PAT})
+    if (( $+commands[tmux] )); then
+        local pat_re='^([A-Za-z_][A-Za-z0-9_]*_NUGET_PAT)='
+        while IFS= read -r line; do
+            if [[ $line =~ $pat_re ]]; then
+                reply+=("$match[1]")
+            fi
+        done < <(tmux show-environment -g 2>/dev/null)
+    fi
     reply=("${(@u)reply}")
 }
 
@@ -247,9 +256,15 @@ claude() {
     local mode
     claude-arg-mode "$@"
     mode=$REPLY
+    # Fail closed: a ~/.claudeenv that does not load Bedrock would let claude fall through to the first-party account
+    # with work traffic.
+    local envfail="claude: ~/.claudeenv failed to load or lacks CLAUDE_CODE_USE_BEDROCK=1; run ~/dotfiles/hydrate.sh"
     if [[ $mode == bare ]]; then
         if [[ -r $HOME/.claudeenv ]]; then
-            (source "$HOME/.claudeenv"; command claude "$@")
+            (
+                source "$HOME/.claudeenv" && [[ $CLAUDE_CODE_USE_BEDROCK == 1 ]] || { echo "$envfail" >&2; exit 1 }
+                command claude "$@"
+            )
         else
             echo "claude: ~/.claudeenv is missing (run ~/dotfiles/hydrate.sh); running without Bedrock" >&2
             command claude "$@"
@@ -291,7 +306,7 @@ claude() {
     # An empty fallback must yield no word, or --fallback-model takes the next flag as its value.
     if [[ $mode == direct ]]; then
         (
-            source "$HOME/.claudeenv"
+            source "$HOME/.claudeenv" && [[ $CLAUDE_CODE_USE_BEDROCK == 1 ]] || { echo "$envfail" >&2; exit 1 }
             "${launch[@]}" --model opus ${BEDROCK_OPUS_FALLBACK_ARNS:+--fallback-model=$BEDROCK_OPUS_FALLBACK_ARNS} \
                 --settings "$work_settings" --exclude-dynamic-system-prompt-sections "$@"
         )
@@ -308,9 +323,12 @@ claude() {
         session=$("$HOME/.claude/scripts/derive-claude-slug.sh")
     done
     # One command string: given several arguments, tmux runs them directly without a shell. The fallback expands in
-    # the pane, after ~/.claudeenv.
+    # the pane, after ~/.claudeenv. The environment check is POSIX, since tmux's default-shell may be sh; the sleep
+    # keeps the pane open to show it.
+    local pane_env_check="{ . ~/.claudeenv && [ \"\$CLAUDE_CODE_USE_BEDROCK\" = 1 ]; } || "
+    pane_env_check+="{ printf '%s\\n' ${(qq)envfail} >&2; sleep 5; exit 1; }"
     tmux new-session -s "$session" \
-        "source ~/.claudeenv; exec ${(j: :)${(@q)launch}} --model opus \${BEDROCK_OPUS_FALLBACK_ARNS:+--fallback-model=\$BEDROCK_OPUS_FALLBACK_ARNS} --settings ${(q)work_settings} --exclude-dynamic-system-prompt-sections ${(j: :)${(q)@}}"
+        "$pane_env_check; exec ${(j: :)${(@q)launch}} --model opus \${BEDROCK_OPUS_FALLBACK_ARNS:+--fallback-model=\$BEDROCK_OPUS_FALLBACK_ARNS} --settings ${(q)work_settings} --exclude-dynamic-system-prompt-sections ${(j: :)${(q)@}}"
 }
 # Launch Claude Code with a personal Pro subscription (no Bedrock).
 # Strips every variable ~/.claudeenv exports, plus AWS_PROFILE and any NuGet PAT, so Claude falls back to OAuth
