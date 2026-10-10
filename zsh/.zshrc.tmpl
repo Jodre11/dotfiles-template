@@ -325,7 +325,7 @@ claude() {
     # One command string: given several arguments, tmux runs them directly without a shell. The fallback expands in
     # the pane, after ~/.claudeenv. The environment check is POSIX, since tmux's default-shell may be sh; the sleep
     # keeps the pane open to show it.
-    local pane_env_check="{ source ~/.claudeenv && [ \"\$CLAUDE_CODE_USE_BEDROCK\" = 1 ]; } || "
+    local pane_env_check="{ . ~/.claudeenv && [ \"\$CLAUDE_CODE_USE_BEDROCK\" = 1 ]; } || "
     pane_env_check+="{ printf '%s\\n' ${(qq)envfail} >&2; sleep 5; exit 1; }"
     tmux new-session -s "$session" \
         "$pane_env_check; exec ${(j: :)${(@q)launch}} --model opus \${BEDROCK_OPUS_FALLBACK_ARNS:+--fallback-model=\$BEDROCK_OPUS_FALLBACK_ARNS} --settings ${(q)work_settings} --exclude-dynamic-system-prompt-sections ${(j: :)${(q)@}}"
