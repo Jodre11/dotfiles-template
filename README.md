@@ -105,6 +105,18 @@ template repo.
 | `zsh/.zprofile.tmpl` | `zsh/.zprofile` | `__JETBRAINS_TOOLBOX_PATH__` |
 | `zsh/.zshrc.tmpl` | `zsh/.zshrc` | `__SSH_AGENT_SOCK__`, `__NUGET_NAMESPACE__` |
 
+### Bedrock environment and the NuGet PAT
+
+`~/.claudeenv` holds only the Bedrock and AWS variables. The `claude()` wrapper in `.zshrc` sources it in a subshell
+or in its tmux pane, so no interactive shell carries it, and `claude-personal` strips every name it exports.
+`claude()` also passes the work settings layer `~/.claude/settings.work.json` with `--settings`.
+
+**NuGet PAT (envchain):** stored in the macOS Keychain via envchain and never exported by a shell. `claude()` runs a
+session under `envchain <namespace>`, and the `dotnet` and `jb` shell functions wrap those commands the same way.
+Anything else that needs the PAT variable, such as `docker build --build-arg` or a script that spawns `dotnet`, runs
+under envchain by hand, e.g. `envchain <namespace> docker build --build-arg <PREFIX>_NUGET_PAT …`. Set it once with
+`envchain --set <namespace> <PREFIX>_NUGET_PAT`.
+
 ## Secret Scanning
 
 Four layers keep sensitive data out of the repository:

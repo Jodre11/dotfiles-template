@@ -1,3 +1,6 @@
+# Bedrock/AWS only. Sourced by the claude() wrapper alone (in a subshell or its tmux pane, never an interactive
+# shell); claude-personal strips every name exported here. Provider-neutral flags live elsewhere.
+
 # Clean slate - unset all ANTHROPIC_* vars first
 unset ANTHROPIC_MODEL
 unset ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION
@@ -8,6 +11,10 @@ unset ANTHROPIC_DEFAULT_OPUS_MODEL
 # Enable Bedrock integration
 export CLAUDE_CODE_USE_BEDROCK=1
 export AWS_REGION=__BEDROCK_REGION__
+
+# AWS profile for Bedrock, for bare subcommands and nested claude calls. The work settings layer
+# (~/.claude/settings.work.json) carries the same value into the Bash tool, past the subprocess scrub.
+export AWS_PROFILE='__BEDROCK_AWS_PROFILE__'
 
 # Override the region for the small/fast model (Haiku)
 export ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION=__BEDROCK_REGION__
@@ -25,38 +32,9 @@ export ANTHROPIC_DEFAULT_OPUS_MODEL='__BEDROCK_OPUS_ARN__'
 # Fires only on 5xx/overload of the primary (not 429). Tried in order.
 export BEDROCK_OPUS_FALLBACK_ARNS='__BEDROCK_OPUS_FALLBACK_ARNS__'
 
-# Flicker-free alt-screen rendering with virtualised scrollback
-export CLAUDE_CODE_NO_FLICKER=1
-
-# Enable tool discovery across MCP servers
-export ENABLE_TOOL_SEARCH=true
-
 # Declare supported capabilities for Bedrock inference profiles
 # (Claude Code cannot auto-detect from ARNs; without these, /effort and thinking are silently disabled)
 export ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES='effort,max_effort,thinking,adaptive_thinking,interleaved_thinking'
 export ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES='effort,max_effort,thinking,adaptive_thinking,interleaved_thinking'
 export ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES='effort,thinking,adaptive_thinking,interleaved_thinking,long_context'
 export ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES='effort,thinking,adaptive_thinking'
-
-# Extend prompt cache TTL from 5 minutes to 1 hour (cache hits cost ~90% less)
-export ENABLE_PROMPT_CACHING_1H=1
-
-# Strip AWS/Anthropic credentials from Bash tool, hooks, and MCP subprocesses
-export CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1
-
-# Auto-update Claude Code on session start (npm/Homebrew/etc., based on installation method)
-export CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE=1
-
-# Turns the Workflow tool on by default for a personal Pro account; on Bedrock the server-side flag decides, so
-# there this has no effect
-export CLAUDE_CODE_WORKFLOWS=1
-
-# Enable Auto permission mode on Bedrock/Vertex/Foundry (Opus 4.7+, verified on Opus 5). Added
-# in Claude Code v2.1.158 to close the parity gap with first-party. A background safety-check
-# classifier replaces permission prompts — this is the permission-mode Auto, not per-turn
-# effort/model routing.
-export CLAUDE_CODE_ENABLE_AUTO_MODE=1
-
-# Enable the (currently undocumented) LSP tool surface. Required by the roslyn-lsp plugin
-# (and any other LSP plugin) to actually expose findReferences/goToDefinition/etc to Claude.
-export ENABLE_LSP_TOOL=1
