@@ -37,9 +37,14 @@ cat > "$tmp/bin/tmux" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
     has-session) exit 1 ;;
+    show-environment) [[ -z ${TMUX_TEST_GLOBAL_ENV-} ]] || printf '%s\n' "$TMUX_TEST_GLOBAL_ENV" ;;
     new-session)
         shift 3
         printf '%s' "$#" > "$WRAPPER_TEST_OUT/tmux-argc"
+        # The pane inherits the server's global environment, which the calling shell never held.
+        while IFS= read -r line; do
+            [[ $line == *=* ]] && export "$line"
+        done <<< "${TMUX_TEST_GLOBAL_ENV-}"
         exec zsh -f -c "$1"
         ;;
 esac
@@ -51,7 +56,7 @@ cat > "$tmp/bin/claude" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$@" > "$WRAPPER_TEST_OUT/claude-argv"
 for name in CLAUDE_CODE_USE_BEDROCK AWS_REGION ANTHROPIC_MODEL AWS_PROFILE TEST_NUGET_PAT INDENTED_VAR \
-    CLAUDE_CODE_NO_FLICKER ENVCHAIN_RAN; do
+    CLAUDE_CODE_NO_FLICKER ENVCHAIN_RAN STALE_NUGET_PAT; do
     printf '%s=%s\n' "$name" "${!name-<unset>}"
 done > "$WRAPPER_TEST_OUT/claude-env"
 EOF
@@ -68,6 +73,9 @@ ns=$1
 shift
 ENVCHAIN_RAN=$ns TEST_NUGET_PAT=from-keychain exec "$@"
 EOF
+
+# The sleep stub logs its argument and returns at once, so a pane held open to show an error costs no time.
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" > "$WRAPPER_TEST_OUT/sleep-argv"\n' > "$tmp/bin/sleep"
 
 for tool in dotnet jb; do
     printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" > "$WRAPPER_TEST_OUT/%s-argv"\n' "$tool" >"$tmp/bin/$tool"
@@ -215,11 +223,27 @@ check "claude-personal mcp list: Bedrock environment stripped" "<unset>" "$(envv
 # --- the strip list is derived from ~/.claudeenv
 write_claudeenv fallback-arn
 # shellcheck disable=SC2016 # reply expands in the zsh child
-got=$(env -i HOME="$home" PATH="$PATH" TEST_NUGET_PAT=x OTHER_NUGET_PAT=y \
+got=$(env -i HOME="$home" PATH="$tmp/bin:$PATH" TEST_NUGET_PAT=x OTHER_NUGET_PAT=y \
     zsh -f -c 'source "$1"; claude-work-vars; print -l -- ${(o)reply}' _ "$wrappers")
 check "claude-work-vars: every exported name, AWS_PROFILE and each *_NUGET_PAT, once, nothing commented out" \
     "$(printf '%s\n' ANTHROPIC_MODEL AWS_PROFILE AWS_REGION BEDROCK_OPUS_FALLBACK_ARNS CLAUDE_CODE_USE_BEDROCK \
         INDENTED_VAR OTHER_NUGET_PAT TEST_NUGET_PAT)" "$got"
+
+# shellcheck disable=SC2016 # reply expands in the zsh child
+got=$(env -i HOME="$home" PATH="$tmp/bin:$PATH" TEST_NUGET_PAT=x \
+    TMUX_TEST_GLOBAL_ENV=$'STALE_NUGET_PAT=x\nNOT_A_PAT=y\n# NUGET_PAT=z\nTEST_NUGET_PAT=x' \
+    zsh -f -c 'source "$1"; claude-work-vars; print -l -- ${(o)reply}' _ "$wrappers")
+check "claude-work-vars: a *_NUGET_PAT held only by the tmux server is included, once" \
+    "$(printf '%s\n' ANTHROPIC_MODEL AWS_PROFILE AWS_REGION BEDROCK_OPUS_FALLBACK_ARNS CLAUDE_CODE_USE_BEDROCK \
+        INDENTED_VAR STALE_NUGET_PAT TEST_NUGET_PAT)" "$got"
+
+rm -f "$home/.claudeenv"
+# shellcheck disable=SC2016 # reply expands in the zsh child
+got=$(env -i HOME="$home" PATH="$tmp/bin:$PATH" \
+    zsh -f -c 'source "$1"; claude-work-vars; print -l -- ${(o)reply}' _ "$wrappers")
+check "claude-work-vars, no ~/.claudeenv: AWS_PROFILE and CLAUDE_CODE_USE_BEDROCK still included" \
+    "$(printf '%s\n' AWS_PROFILE CLAUDE_CODE_USE_BEDROCK)" "$got"
+write_claudeenv fallback-arn
 
 # personal_stripped: print the work variables claude still saw, or nothing when every one was stripped.
 personal_stripped() {
@@ -240,6 +264,12 @@ check "claude-personal -p: the launch line carries the inline flags" "1" "$(envv
 
 run_wrapper fallback-arn claude-personal mcp list
 check "claude-personal mcp list: every work variable stripped" "" "$(personal_stripped)"
+
+extra_env=(TMUX_TEST_GLOBAL_ENV=STALE_NUGET_PAT=x)
+run_wrapper fallback-arn claude-personal --resume abc
+check "claude-personal, tmux: a *_NUGET_PAT only the tmux server holds is stripped" "<unset>" \
+    "$(envval STALE_NUGET_PAT)"
+extra_env=()
 
 rm -f "$tmp/out/"* "$home/.claudeenv"
 # shellcheck disable=SC2016 # $1 and $@ expand in the zsh child
@@ -317,6 +347,33 @@ env -i HOME="$home" PATH="$tmp/bin:$PATH" WRAPPER_TEST_OUT="$tmp/out" zsh -f -c 
 check "claude --version, no ~/.claudeenv: still runs, first-party" "--version <unset>" \
     "$(result claude-argv) $(envval CLAUDE_CODE_USE_BEDROCK)"
 check "claude --version, no ~/.claudeenv: warns" "1" "$(grep -c 'hydrate.sh' "$tmp/out/stderr" || true)"
+
+# check_refusals <fixture>: with the ~/.claudeenv written for <fixture> (the lines after it), each of claude's three
+# modes must refuse: claude never runs, the status is non-zero and stderr names hydrate.sh.
+check_refusals() {
+    local fixture=$1 label mode_args
+    shift
+    for mode_args in "tmux:--resume abc" "direct:-p ok" "bare:auth status"; do
+        label=${mode_args%%:*}
+        rm -f "$tmp/out/"*
+        printf '%s\n' "$@" > "$home/.claudeenv"
+        # shellcheck disable=SC2016,SC2086 # $1, $@ and $? expand in the zsh child; the arguments split on purpose
+        env -i HOME="$home" PATH="$tmp/bin:$PATH" WRAPPER_TEST_OUT="$tmp/out" zsh -f -c \
+            'source "$1"; shift; "$@"; print -rn -- $? > "$WRAPPER_TEST_OUT/rc"' _ "$wrappers" claude \
+            ${mode_args#*:} > /dev/null 2> "$tmp/out/stderr" || true
+        check "claude $label, $fixture: claude does not run, status non-zero" "<missing> 1" \
+            "$(result claude-argv) $(result rc)"
+        check "claude $label, $fixture: names the remedy" "1" "$(grep -c 'hydrate.sh' "$tmp/out/stderr" || true)"
+        if [[ $label == tmux ]]; then
+            check "claude tmux, $fixture: the pane stays open to show the error" "5" "$(result sleep-argv)"
+        fi
+    done
+}
+
+check_refusals "an unparseable ~/.claudeenv" 'export CLAUDE_CODE_USE_BEDROCK=1' 'if [[ '
+check_refusals "a ~/.claudeenv without CLAUDE_CODE_USE_BEDROCK=1" '# Clean slate' 'export AWS_REGION=fixture-region'
+check_refusals "a ~/.claudeenv with CLAUDE_CODE_USE_BEDROCK=0" 'export CLAUDE_CODE_USE_BEDROCK=0'
+write_claudeenv fallback-arn
 
 extra_env=(CLAUDECODE=1)
 run_wrapper fallback-arn claude --resume abc
