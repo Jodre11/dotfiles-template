@@ -145,23 +145,14 @@ export BW_SERVE_URL="http://localhost:8087"
 
 export DOTNET_ROOT=/usr/local/share/dotnet
 export PATH=$PATH:$DOTNET_ROOT/tools:$HOME/.dotnet/tools
-# The NuGet PAT stays in the Keychain: these shims, like a work claude() session, read it through envchain per call,
-# so no shell exports it. Anything else needing it (docker build --build-arg, a script that spawns dotnet) takes
-# `envchain __NUGET_NAMESPACE__ …` by hand.
+# The NuGet PAT is exported for every shell, and so for GUI apps that import a login-shell environment (Rider, say).
+# It is read from envchain at shell start; a locked keychain or a missing namespace is skipped silently.
 if [[ -n "__NUGET_NAMESPACE__" ]]; then
-    dotnet() {
-        if [[ -n $CLAUDECODE ]]; then
-            command dotnet "$@"
-            return
-        fi
-        envchain __NUGET_NAMESPACE__ dotnet "$@"
-    }
-    jb() {
-        if [[ -n $CLAUDECODE ]]; then
-            command jb "$@"
-            return
-        fi
-        envchain __NUGET_NAMESPACE__ jb "$@"
+    () {
+        local line
+        for line in ${(f)"$(envchain __NUGET_NAMESPACE__ env 2>/dev/null)"}; do
+            [[ $line =~ '^[A-Za-z_][A-Za-z0-9_]*_NUGET_PAT=' ]] && export "$line"
+        done
     }
 fi
 export AWS_REGION='__AWS_REGION__'
@@ -202,9 +193,8 @@ claude-arg-mode() {
     done
 }
 
-# Set reply to the variables a personal session must not inherit: every name ~/.claudeenv exports, AWS_PROFILE,
-# CLAUDE_CODE_USE_BEDROCK and each *_NUGET_PAT held by this shell or the tmux server (a pane inherits the server's
-# environment; any of these may have been exported by hand).
+# Set reply to the variables a personal session must not inherit: every name ~/.claudeenv exports, AWS_PROFILE and
+# CLAUDE_CODE_USE_BEDROCK (any of these may have been exported by hand).
 claude-work-vars() {
     reply=()
     local line re='^[[:space:]]*export[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)='
@@ -215,15 +205,7 @@ claude-work-vars() {
             fi
         done < "$HOME/.claudeenv"
     fi
-    reply+=(AWS_PROFILE CLAUDE_CODE_USE_BEDROCK ${(M)${(k)parameters}:#*_NUGET_PAT})
-    if (( $+commands[tmux] )); then
-        local pat_re='^([A-Za-z_][A-Za-z0-9_]*_NUGET_PAT)='
-        while IFS= read -r line; do
-            if [[ $line =~ $pat_re ]]; then
-                reply+=("$match[1]")
-            fi
-        done < <(tmux show-environment -g 2>/dev/null)
-    fi
+    reply+=(AWS_PROFILE CLAUDE_CODE_USE_BEDROCK)
     reply=("${(@u)reply}")
 }
 
@@ -244,8 +226,8 @@ claude-launch-env() {
 # syncs the pane title to the tmux session name automatically.
 # Session-level hooks survive renames because tmux binds them to
 # the session object, not the name.
-# The Bedrock environment (~/.claudeenv), the work settings layer and the NuGet PAT reach only the claude process: no
-# interactive shell holds them.
+# The Bedrock environment (~/.claudeenv) and the work settings layer reach only the claude process: no interactive
+# shell holds them.
 claude() {
     # Claude Code's shell snapshot carries this function into its Bash tool, where the session's own environment
     # decides.
@@ -288,20 +270,9 @@ claude() {
         "$HOME/.claude/scripts/aws-sso-preflight.sh"
     fi
 
-    # The PAT stays in the Keychain: envchain hands it to the claude process only. Checked here, where a failure
-    # (a locked keychain, a missing namespace) stays visible.
     local -a launch
     claude-launch-env
-    launch=(env "${reply[@]}")
-    if [[ -n "__NUGET_NAMESPACE__" ]]; then
-        if envchain __NUGET_NAMESPACE__ true 2>/dev/null; then
-            launch+=(envchain __NUGET_NAMESPACE__)
-        else
-            echo "claude: envchain namespace __NUGET_NAMESPACE__ is unavailable;" \
-                "starting without the NuGet PAT" >&2
-        fi
-    fi
-    launch+=(claude)
+    launch=(env "${reply[@]}" claude)
 
     # An empty fallback must yield no word, or --fallback-model takes the next flag as its value.
     if [[ $mode == direct ]]; then
@@ -331,8 +302,8 @@ claude() {
         "$pane_env_check; exec ${(j: :)${(@q)launch}} --model opus \${BEDROCK_OPUS_FALLBACK_ARNS:+--fallback-model=\$BEDROCK_OPUS_FALLBACK_ARNS} --settings ${(q)work_settings} --exclude-dynamic-system-prompt-sections ${(j: :)${(q)@}}"
 }
 # Launch Claude Code with a personal Pro subscription (no Bedrock).
-# Strips every variable ~/.claudeenv exports, plus AWS_PROFILE and any NuGet PAT, so Claude falls back to OAuth
-# login. Wraps in tmux like claude() but skips the SSO preflight.
+# Strips every variable ~/.claudeenv exports, plus AWS_PROFILE and CLAUDE_CODE_USE_BEDROCK, so Claude falls back to
+# OAuth login; the shell's NuGet PAT is left alone. Wraps in tmux like claude() but skips the SSO preflight.
 claude-personal() {
     # Claude Code's shell snapshot carries this function into its Bash tool, where the session's own environment
     # decides.

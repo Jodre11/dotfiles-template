@@ -37,14 +37,9 @@ cat > "$tmp/bin/tmux" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
     has-session) exit 1 ;;
-    show-environment) [[ -z ${TMUX_TEST_GLOBAL_ENV-} ]] || printf '%s\n' "$TMUX_TEST_GLOBAL_ENV" ;;
     new-session)
         shift 3
         printf '%s' "$#" > "$WRAPPER_TEST_OUT/tmux-argc"
-        # The pane inherits the server's global environment, which the calling shell never held.
-        while IFS= read -r line; do
-            [[ $line == *=* ]] && export "$line"
-        done <<< "${TMUX_TEST_GLOBAL_ENV-}"
         exec zsh -f -c "$1"
         ;;
 esac
@@ -56,50 +51,39 @@ cat > "$tmp/bin/claude" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$@" > "$WRAPPER_TEST_OUT/claude-argv"
 for name in CLAUDE_CODE_USE_BEDROCK AWS_REGION ANTHROPIC_MODEL AWS_PROFILE TEST_NUGET_PAT INDENTED_VAR \
-    CLAUDE_CODE_NO_FLICKER ENVCHAIN_RAN STALE_NUGET_PAT; do
+    CLAUDE_CODE_NO_FLICKER; do
     printf '%s=%s\n' "$name" "${!name-<unset>}"
 done > "$WRAPPER_TEST_OUT/claude-env"
 EOF
 
-# The envchain stub logs each call; ENVCHAIN_TEST_RC makes every call fail with that status, as a locked keychain or
-# a missing namespace would. Otherwise it runs the command with the namespace's PAT, as envchain does.
+# The wrappers must never call envchain; the stub only logs a call so a case can prove there was none.
 cat > "$tmp/bin/envchain" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$WRAPPER_TEST_OUT/envchain-calls"
-if [[ -n ${ENVCHAIN_TEST_RC-} ]]; then
-    exit "$ENVCHAIN_TEST_RC"
-fi
-ns=$1
-shift
-ENVCHAIN_RAN=$ns TEST_NUGET_PAT=from-keychain exec "$@"
 EOF
 
 # The sleep stub logs its argument and returns at once, so a pane held open to show an error costs no time.
 printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" > "$WRAPPER_TEST_OUT/sleep-argv"\n' > "$tmp/bin/sleep"
 
-for tool in dotnet jb; do
-    printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" > "$WRAPPER_TEST_OUT/%s-argv"\n' "$tool" >"$tmp/bin/$tool"
-done
-
 printf '#!/usr/bin/env bash\necho c-test-0000\n' > "$home/.claude/scripts/derive-claude-slug.sh"
 chmod +x "$tmp/bin/"* "$home/.claude/scripts/derive-claude-slug.sh"
 
-# Extract the wrappers, once with a configured namespace and once with none.
-extracted=$(awk '/^claude-arg-mode\(\) \{$/,/^}$/; /^claude-work-vars\(\) \{$/,/^}$/;
-    /^claude-launch-env\(\) \{$/,/^}$/; /^claude\(\) \{$/,/^}$/; /^claude-personal\(\) \{$/,/^}$/;
-    /^if \[\[ -n "__NUGET_NAMESPACE__" \]\]; then$/,/^fi$/' \
-    "$repo_root/zsh/.zshrc.tmpl")
-printf '%s\n' "${extracted//__NUGET_NAMESPACE__/testns}" > "$tmp/wrappers.zsh"
-printf '%s\n' "${extracted//__NUGET_NAMESPACE__/}" > "$tmp/wrappers-nons.zsh"
+# Extract the wrappers, and the NuGet PAT export block once with a configured namespace and once with none.
+awk '/^claude-arg-mode\(\) \{$/,/^}$/; /^claude-work-vars\(\) \{$/,/^}$/;
+    /^claude-launch-env\(\) \{$/,/^}$/; /^claude\(\) \{$/,/^}$/; /^claude-personal\(\) \{$/,/^}$/' \
+    "$repo_root/zsh/.zshrc.tmpl" > "$tmp/wrappers.zsh"
+pat_block=$(awk '/^if \[\[ -n "__NUGET_NAMESPACE__" \]\]; then$/,/^fi$/' "$repo_root/zsh/.zshrc.tmpl")
+printf '%s\n' "${pat_block//__NUGET_NAMESPACE__/testns}" > "$tmp/pat.zsh"
+printf '%s\n' "${pat_block//__NUGET_NAMESPACE__/}" > "$tmp/pat-nons.zsh"
 wrappers="$tmp/wrappers.zsh"
 extra_env=()
 
 # Claude Code's shell snapshot drops functions whose names start with _, so a wrapper calling one fails in the ! and
 # Bash-tool shells.
-check "the wrappers call no _-prefixed function" "" \
-    "$(grep -oE '^[[:space:]]+_[[:alnum:]_-]+' "$tmp/wrappers.zsh" | tr -d '[:space:]' || true)"
+check "the wrappers and the PAT block call no _-prefixed function" "" \
+    "$(grep -oE '^[[:space:]]+_[[:alnum:]_-]+' "$tmp/wrappers.zsh" "$tmp/pat.zsh" | tr -d '[:space:]' || true)"
 check "the argument classifier is extracted" "1" "$(grep -c '^claude-arg-mode() {$' "$tmp/wrappers.zsh" || true)"
-check "the NuGet shim block is extracted" "1" "$(grep -c '^    dotnet() {$' "$tmp/wrappers.zsh" || true)"
+check "the NuGet PAT export block is extracted" "1" "$(grep -c 'envchain testns env' "$tmp/pat.zsh" || true)"
 
 # write_claudeenv <fallback>: write a scratch ~/.claudeenv shaped like the real one, plus a commented-out and an
 # indented export for the parser cases.
@@ -112,9 +96,9 @@ write_claudeenv() {
 
 # run_wrapper <fallback> <function> [arg...]: run <function> from $wrappers under `env -i` and zsh -f, so the
 # runner's own environment (CLAUDECODE, TMUX, a real *_NUGET_PAT) cannot leak in. The parent holds stale work
-# variables, as a shell started before the change would; extra_env adds more. Leaves tmux's argument count, claude's
-# argv and environment, envchain's calls, the wrapper's stderr and exit status, and the parent shell's ANTHROPIC_MODEL
-# after the call in $tmp/out.
+# variables, as a shell started before the change would, and a hand-set NuGet PAT, as every shell now does; extra_env
+# adds more. Leaves tmux's argument count, claude's argv and environment, envchain's calls, the wrapper's stderr and
+# exit status, and the parent shell's ANTHROPIC_MODEL after the call in $tmp/out.
 run_wrapper() {
     local fallback=$1
     shift
@@ -225,17 +209,9 @@ write_claudeenv fallback-arn
 # shellcheck disable=SC2016 # reply expands in the zsh child
 got=$(env -i HOME="$home" PATH="$tmp/bin:$PATH" TEST_NUGET_PAT=x OTHER_NUGET_PAT=y \
     zsh -f -c 'source "$1"; claude-work-vars; print -l -- ${(o)reply}' _ "$wrappers")
-check "claude-work-vars: every exported name, AWS_PROFILE and each *_NUGET_PAT, once, nothing commented out" \
+check "claude-work-vars: every exported name and AWS_PROFILE, once, nothing commented out, no *_NUGET_PAT" \
     "$(printf '%s\n' ANTHROPIC_MODEL AWS_PROFILE AWS_REGION BEDROCK_OPUS_FALLBACK_ARNS CLAUDE_CODE_USE_BEDROCK \
-        INDENTED_VAR OTHER_NUGET_PAT TEST_NUGET_PAT)" "$got"
-
-# shellcheck disable=SC2016 # reply expands in the zsh child
-got=$(env -i HOME="$home" PATH="$tmp/bin:$PATH" TEST_NUGET_PAT=x \
-    TMUX_TEST_GLOBAL_ENV=$'STALE_NUGET_PAT=x\nNOT_A_PAT=y\n# NUGET_PAT=z\nTEST_NUGET_PAT=x' \
-    zsh -f -c 'source "$1"; claude-work-vars; print -l -- ${(o)reply}' _ "$wrappers")
-check "claude-work-vars: a *_NUGET_PAT held only by the tmux server is included, once" \
-    "$(printf '%s\n' ANTHROPIC_MODEL AWS_PROFILE AWS_REGION BEDROCK_OPUS_FALLBACK_ARNS CLAUDE_CODE_USE_BEDROCK \
-        INDENTED_VAR STALE_NUGET_PAT TEST_NUGET_PAT)" "$got"
+        INDENTED_VAR)" "$got"
 
 rm -f "$home/.claudeenv"
 # shellcheck disable=SC2016 # reply expands in the zsh child
@@ -248,7 +224,7 @@ write_claudeenv fallback-arn
 # personal_stripped: print the work variables claude still saw, or nothing when every one was stripped.
 personal_stripped() {
     local name left=""
-    for name in CLAUDE_CODE_USE_BEDROCK AWS_REGION ANTHROPIC_MODEL AWS_PROFILE TEST_NUGET_PAT INDENTED_VAR; do
+    for name in CLAUDE_CODE_USE_BEDROCK AWS_REGION ANTHROPIC_MODEL AWS_PROFILE INDENTED_VAR; do
         [[ "$(envval "$name")" == "<unset>" ]] || left+=" $name"
     done
     printf '%s' "$left"
@@ -256,27 +232,24 @@ personal_stripped() {
 
 run_wrapper fallback-arn claude-personal --resume abc
 check "claude-personal, tmux: the pane strips every work variable the parent still holds" "" "$(personal_stripped)"
+check "claude-personal, tmux: a hand-set NuGet PAT reaches claude" "hand-set" "$(envval TEST_NUGET_PAT)"
 check "claude-personal, tmux: the launch line carries the inline flags" "1" "$(envval CLAUDE_CODE_NO_FLICKER)"
 
 run_wrapper fallback-arn claude-personal -p "say ok"
 check "claude-personal -p: every work variable stripped" "" "$(personal_stripped)"
+check "claude-personal -p: a hand-set NuGet PAT reaches claude" "hand-set" "$(envval TEST_NUGET_PAT)"
 check "claude-personal -p: the launch line carries the inline flags" "1" "$(envval CLAUDE_CODE_NO_FLICKER)"
 
 run_wrapper fallback-arn claude-personal mcp list
 check "claude-personal mcp list: every work variable stripped" "" "$(personal_stripped)"
-
-extra_env=(TMUX_TEST_GLOBAL_ENV=STALE_NUGET_PAT=x)
-run_wrapper fallback-arn claude-personal --resume abc
-check "claude-personal, tmux: a *_NUGET_PAT only the tmux server holds is stripped" "<unset>" \
-    "$(envval STALE_NUGET_PAT)"
-extra_env=()
+check "claude-personal mcp list: a hand-set NuGet PAT reaches claude" "hand-set" "$(envval TEST_NUGET_PAT)"
 
 rm -f "$tmp/out/"* "$home/.claudeenv"
 # shellcheck disable=SC2016 # $1 and $@ expand in the zsh child
 env -i HOME="$home" PATH="$tmp/bin:$PATH" WRAPPER_TEST_OUT="$tmp/out" AWS_PROFILE=hand-set TEST_NUGET_PAT=hand-set \
     zsh -f -c 'source "$1"; shift; "$@"' _ "$wrappers" claude-personal -p "say ok" > /dev/null 2>&1 || true
 check "claude-personal, no ~/.claudeenv: still runs" "$personal_direct"$'\n'-p$'\n'"say ok" "$(result claude-argv)"
-check "claude-personal, no ~/.claudeenv: AWS_PROFILE and the NuGet PAT still stripped" "<unset> <unset>" \
+check "claude-personal, no ~/.claudeenv: AWS_PROFILE still stripped, the NuGet PAT kept" "<unset> hand-set" \
     "$(envval AWS_PROFILE) $(envval TEST_NUGET_PAT)"
 
 extra_env=(CLAUDECODE=1)
@@ -287,12 +260,12 @@ check "claude-personal inside Claude Code: no tmux" "<missing>" "$(result tmux-a
 check "claude-personal inside Claude Code: the session's own environment" "hand-set" "$(envval AWS_PROFILE)"
 extra_env=()
 
-# --- claude(): scoped ~/.claudeenv, the work layer and the NuGet PAT
+# --- claude(): scoped ~/.claudeenv and the work layer; the NuGet PAT is the shell's own
 run_wrapper fallback-arn claude --resume abc
 check "claude, tmux: the pane sources ~/.claudeenv" "fixture-model" "$(envval ANTHROPIC_MODEL)"
 check "claude, tmux: the parent shell is untouched" "<unset>" "$(result parent-model)"
-check "claude, tmux: runs under the namespace's envchain" "testns from-keychain" \
-    "$(envval ENVCHAIN_RAN) $(envval TEST_NUGET_PAT)"
+check "claude, tmux: no envchain call" "<missing>" "$(result envchain-calls)"
+check "claude, tmux: the shell's NuGet PAT reaches claude" "hand-set" "$(envval TEST_NUGET_PAT)"
 check "claude, tmux: the launch line carries the inline flags" "1" "$(envval CLAUDE_CODE_NO_FLICKER)"
 
 run_wrapper fallback-arn claude -p "say ok"
@@ -300,27 +273,14 @@ check "claude -p: the work layer and the fallback from ~/.claudeenv" "$work_dire
     "$(result claude-argv)"
 check "claude -p: ~/.claudeenv is sourced for the call only" "fixture-model <unset>" \
     "$(envval ANTHROPIC_MODEL) $(result parent-model)"
-check "claude -p: runs under the namespace's envchain" "testns" "$(envval ENVCHAIN_RAN)"
+check "claude -p: no envchain call" "<missing>" "$(result envchain-calls)"
+check "claude -p: the shell's NuGet PAT reaches claude" "hand-set" "$(envval TEST_NUGET_PAT)"
 
 run_wrapper fallback-arn claude auth status
 check "claude auth status: bare, with no work layer" "auth"$'\n'status "$(result claude-argv)"
 check "claude auth status: ~/.claudeenv is sourced for the call only" "fixture-model <unset>" \
     "$(envval ANTHROPIC_MODEL) $(result parent-model)"
-check "claude auth status: no envchain" "<unset>" "$(envval ENVCHAIN_RAN)"
-
-wrappers="$tmp/wrappers-nons.zsh"
-run_wrapper fallback-arn claude --resume abc
-check "claude, no namespace: no envchain call" "<missing>" "$(result envchain-calls)"
-check "claude, no namespace: still launches" "$work_tmux"$'\n'--resume$'\n'abc "$(result claude-argv)"
-wrappers="$tmp/wrappers.zsh"
-
-extra_env=(ENVCHAIN_TEST_RC=1)
-run_wrapper fallback-arn claude --resume abc
-check "claude, envchain unavailable: launches without it" "$work_tmux"$'\n'--resume$'\n'abc "$(result claude-argv)"
-check "claude, envchain unavailable: no PAT from the keychain" "<unset>" "$(envval ENVCHAIN_RAN)"
-check "claude, envchain unavailable: warns in the parent shell" "1" \
-    "$(grep -c 'starting without the NuGet PAT' "$tmp/out/stderr" || true)"
-extra_env=()
+check "claude auth status: no envchain" "<missing>" "$(result envchain-calls)"
 
 rm "$home/.claude/settings.work.json"
 for flags in "--resume abc" "-p ok"; do
@@ -383,7 +343,7 @@ check "claude inside Claude Code: no tmux and no envchain" "<missing> <missing>"
     "$(result tmux-argc) $(result envchain-calls)"
 extra_env=()
 
-# --- no interactive shell gets the Bedrock environment or the NuGet PAT
+# --- no interactive shell gets the Bedrock environment; every shell gets the NuGet PAT
 zshrc="$repo_root/zsh/.zshrc.tmpl"
 claudeenv_tmpl="$repo_root/zsh/.claudeenv.tmpl"
 neutral='CLAUDE_CODE_NO_FLICKER|ENABLE_TOOL_SEARCH|ENABLE_PROMPT_CACHING_1H|CLAUDE_CODE_SUBPROCESS_ENV_SCRUB'
@@ -391,8 +351,10 @@ neutral+='|CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE|CLAUDE_CODE_WORKFLOWS|CLAUDE_
 neutral+='|ENABLE_LSP_TOOL'
 check ".zshrc sources ~/.claudeenv nowhere outside claude()" "0" \
     "$(grep -cE '^\[ -f "\$HOME/\.claudeenv" \]' "$zshrc" || true)"
-check ".zshrc exports no NuGet PAT" "0" \
-    "$(grep -cE 'envchain __NUGET_NAMESPACE__ env|export .*_NUGET_PAT' "$zshrc" || true)"
+check ".zshrc exports the NuGet PAT from envchain, quoted" "1 0" \
+    "$(grep -cE 'envchain __NUGET_NAMESPACE__ env' "$zshrc" || true) $(grep -cF 'export $(envchain' "$zshrc" || true)"
+check ".zshrc wraps no dotnet or jb in envchain" "0" \
+    "$(grep -cE '^(dotnet|jb)\(\) \{|^    (dotnet|jb)\(\) \{' "$zshrc" || true)"
 check ".zshrc takes AWS_REGION from config.env" "1" \
     "$(grep -cxF "export AWS_REGION='__AWS_REGION__'" "$zshrc" || true)"
 check ".claudeenv carries no provider-neutral flag" "0" "$(grep -cE "$neutral" "$claudeenv_tmpl" || true)"
@@ -401,27 +363,46 @@ check ".claudeenv exports the Bedrock AWS profile" "1" \
 check "every .claudeenv line is a comment, an unset or an export NAME=" "" \
     "$(grep -vE '^(#.*|unset [A-Za-z_][A-Za-z0-9_]*|export [A-Za-z_][A-Za-z0-9_]*=.*)?$' "$claudeenv_tmpl" || true)"
 
-# --- the NuGet shims
-run_wrapper fallback-arn dotnet restore x
-check "dotnet: runs under the namespace's envchain" "testns dotnet restore x" "$(result envchain-calls)"
-check "dotnet: gets its arguments" "restore"$'\n'x "$(result dotnet-argv)"
-run_wrapper fallback-arn jb inspectcode s.sln
-check "jb: runs under the namespace's envchain" "testns jb inspectcode s.sln" "$(result envchain-calls)"
-extra_env=(ENVCHAIN_TEST_RC=3)
-run_wrapper fallback-arn dotnet restore
-check "dotnet: returns envchain's exit status" "3" "$(result rc)"
-extra_env=(CLAUDECODE=1)
-run_wrapper fallback-arn dotnet restore
-check "dotnet inside Claude Code: the plain binary, no envchain" "<missing> restore" \
-    "$(result envchain-calls) $(result dotnet-argv)"
-run_wrapper fallback-arn jb inspectcode
-check "jb inside Claude Code: the plain binary, no envchain" "<missing> inspectcode" \
-    "$(result envchain-calls) $(result jb-argv)"
-extra_env=()
-# shellcheck disable=SC2016 # whence runs in the zsh child
-check "no namespace: no dotnet or jb shim is defined" "dotnet: command jb: command" \
-    "$(env -i PATH="$tmp/bin:$PATH" zsh -f -c 'source "$1"; print -rn -- "$(whence -w dotnet) $(whence -w jb)"' \
-        _ "$tmp/wrappers-nons.zsh")"
+# --- the NuGet PAT export block
+# Its stub prints a PAT with a space in its value, a second PAT, and two lines that are not PATs.
+mkdir -p "$tmp/pat-ok" "$tmp/pat-fail"
+cat > "$tmp/pat-ok/envchain" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$WRAPPER_TEST_OUT/envchain-calls"
+printf '%s\n' 'FX_NUGET_PAT=a b' 'OTHER=x' 'NOT_A_PAT=y_NUGET_PAT=z' 'SECOND_NUGET_PAT=c'
+EOF
+# A locked keychain or a missing namespace: complains on stderr and fails.
+cat > "$tmp/pat-fail/envchain" <<'EOF'
+#!/usr/bin/env bash
+echo 'envchain: keychain locked' >&2
+exit 1
+EOF
+chmod +x "$tmp/pat-ok/envchain" "$tmp/pat-fail/envchain"
+
+# run_pat_block <stub dir> <file>: source the PAT block under `env -i` and zsh -f, then print the exported lines that
+# mention a PAT (the child's environment, as `env` shows it), whether OTHER is set and whether `line` is still a
+# parameter.
+run_pat_block() {
+    rm -f "$tmp/out/"*
+    # shellcheck disable=SC2016 # the expansions run in the zsh child
+    env -i HOME="$home" PATH="$1:$PATH" WRAPPER_TEST_OUT="$tmp/out" \
+        zsh -f -c 'source "$1"; print -rn -- "${(j:|:)${(f)"$(command env | grep _NUGET_PAT= | sort)"}}"
+            print -rn -- " ${+OTHER} ${+parameters[line]}"' _ "$2" 2> "$tmp/out/stderr"
+}
+
+got=$(run_pat_block "$tmp/pat-ok" "$tmp/pat.zsh")
+check "PAT block: every *_NUGET_PAT exported (FX_NUGET_PAT as one word), nothing else, no loop variable left" \
+    "FX_NUGET_PAT=a b|SECOND_NUGET_PAT=c 0 0" "$got"
+check "PAT block: asks envchain for the namespace's environment" "testns env" "$(result envchain-calls)"
+check "PAT block: no output on a healthy start" "" "$(result stderr)"
+
+got=$(run_pat_block "$tmp/pat-fail" "$tmp/pat.zsh")
+check "PAT block, envchain fails: nothing exported, no loop variable left" " 0 0" "$got"
+check "PAT block, envchain fails: the shell starts silently" "" "$(result stderr)"
+
+got=$(run_pat_block "$tmp/pat-ok" "$tmp/pat-nons.zsh")
+check "PAT block, no namespace: envchain is not called and nothing is exported" " 0 0" "$got"
+check "PAT block, no namespace: no envchain call" "<missing>" "$(result envchain-calls)"
 
 echo "-----"
 echo "passed: $passes  failed: $failures"
