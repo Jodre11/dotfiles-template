@@ -57,6 +57,24 @@ run `./hydrate.sh`, and commit the `.tmpl`: a direct edit to the generated file 
 lost on the next hydrate. Stowed files with no `.tmpl` are symlinks, so editing
 them in `~` changes this repo.
 
+## Claude Code wrappers
+
+`claude()` and `claude-personal()` in `zsh/.zshrc.tmpl` are a contract with `~/.claude`; the README's "Two providers
+side by side" describes them for users. When editing them, keep these true:
+
+- Work-only values reach only the `claude` process: `~/.claudeenv` is sourced in its subshell or tmux pane, never in
+  an interactive shell, and work settings go in `~/.claude/settings.work.json`, never in the shared `settings.json`.
+- `claude` fails closed: it does not launch when `~/.claudeenv` is missing, does not load or does not set
+  `CLAUDE_CODE_USE_BEDROCK=1`, or when `settings.work.json` is missing.
+- `claude-personal` strips every name `~/.claudeenv` exports (`claude-work-vars` reads them from the file), plus
+  `AWS_PROFILE` and `CLAUDE_CODE_USE_BEDROCK`, in the shell and again in the tmux pane, which inherits the tmux
+  server's environment rather than the shell's.
+- Both run plain `command claude` when `CLAUDECODE` is set: Claude Code's shell snapshot carries the functions into
+  its Bash tool, where the session's own environment decides.
+- Flags Claude Code reads before settings load go in `claude-launch-env`, which both share.
+- A caller's `--settings` replaces the wrapper's (Claude Code keeps the last); the README documents the workaround.
+- A `~/.claude` script the wrappers call is a cross-repo dependency: name it in the README.
+
 ## SSH Keys
 
 SSH keys are stored in the Bitwarden vault and served via the Bitwarden SSH
