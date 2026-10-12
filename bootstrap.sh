@@ -123,11 +123,10 @@ if [ ! -d "$HOME/.oh-my-zsh" ]; then
     sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/e64912e0c1eaa32181c3b5e5e4bf8042ecd0e8a7/tools/install.sh)" "" --unattended
 fi
 
-# ---------- zsh-syntax-highlighting (manual clone used by .zshrc) ----------
-if [ ! -d "$HOME/.zsh/zsh-syntax-highlighting" ]; then
+# ---------- zsh-syntax-highlighting (Oh My Zsh custom plugin) ----------
+if [ ! -d "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting" ]; then
     echo "Installing zsh-syntax-highlighting..."
-    mkdir -p "$HOME/.zsh"
-    git clone --branch 0.8.0 --depth 1 https://github.com/zsh-users/zsh-syntax-highlighting.git "$HOME/.zsh/zsh-syntax-highlighting"
+    git clone --branch 0.8.0 --depth 1 https://github.com/zsh-users/zsh-syntax-highlighting.git "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting"
 fi
 
 # ---------- zsh-autosuggestions (Oh My Zsh custom plugin) ----------
@@ -168,39 +167,10 @@ fi
 echo "Installing Rust components..."
 rustup component add rust-analyzer
 
-# ---------- .NET SDKs (via official dotnet-install.sh) ----------
-# Installs both LTS and STS SDKs to ~/.dotnet using Microsoft's install script.
-# The Homebrew dotnet-sdk-versions cask tap is unreliable for multi-version installs.
-# See: https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script
-DOTNET_INSTALL_DIR="$HOME/.dotnet"
-DOTNET_INSTALL_SCRIPT="/tmp/dotnet-install.sh"
-
-if [ ! -f "$DOTNET_INSTALL_SCRIPT" ]; then
-    echo "Downloading dotnet-install.sh..."
-    curl -sSL https://dot.net/v1/dotnet-install.sh -o "$DOTNET_INSTALL_SCRIPT"
-    chmod +x "$DOTNET_INSTALL_SCRIPT"
-fi
-
-# Install STS (latest) first so its dotnet binary is the primary one.
-echo "Installing .NET SDK (STS channel)..."
-"$DOTNET_INSTALL_SCRIPT" \
-    --channel STS \
-    --install-dir "$DOTNET_INSTALL_DIR" \
-    --no-path
-
-# Install LTS alongside, keeping the STS dotnet binary.
-echo "Installing .NET SDK (LTS channel)..."
-"$DOTNET_INSTALL_SCRIPT" \
-    --channel LTS \
-    --install-dir "$DOTNET_INSTALL_DIR" \
-    --no-path \
-    --skip-non-versioned-files
-
-rm -f "$DOTNET_INSTALL_SCRIPT"
-
 # ---------- .NET global tools ----------
-export DOTNET_ROOT="$DOTNET_INSTALL_DIR"
-export PATH="$PATH:$DOTNET_ROOT:$DOTNET_ROOT/tools"
+# The SDKs come from the Brewfile's dotnet-sdk casks; global tools still install to ~/.dotnet/tools.
+export DOTNET_ROOT=/usr/local/share/dotnet
+export PATH="$PATH:$DOTNET_ROOT:$HOME/.dotnet/tools"
 
 # Default .NET tools — override in config.env via DOTNET_TOOLS array
 if [[ ${#DOTNET_TOOLS[@]} -eq 0 ]]; then
@@ -245,6 +215,16 @@ if command -v tenv &>/dev/null; then
     echo "Installing latest-stable Terraform via tenv..."
     tenv tf install latest-stable
     tenv tf use latest-stable
+fi
+
+# ---------- Claude Code (native installer) ----------
+# Installs the launcher to ~/.local/bin/claude and keeps it auto-updating.
+if [ ! -x "$HOME/.local/bin/claude" ]; then
+    echo "Installing Claude Code..."
+    CLAUDE_INSTALL="$(mktemp /tmp/claude-install.XXXXXXXXXX)"
+    curl -fsSL https://claude.ai/install.sh -o "$CLAUDE_INSTALL"
+    bash "$CLAUDE_INSTALL"
+    rm -f "$CLAUDE_INSTALL"
 fi
 
 # ---------- Claude Code settings ----------
