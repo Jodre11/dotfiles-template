@@ -172,8 +172,9 @@ rustup component add rust-analyzer
 export DOTNET_ROOT=/usr/local/share/dotnet
 export PATH="$PATH:$DOTNET_ROOT:$HOME/.dotnet/tools"
 
-# Default .NET tools — override in config.env via DOTNET_TOOLS array
-if [[ ${#DOTNET_TOOLS[@]} -eq 0 ]]; then
+# Default .NET tools — override in config.env via DOTNET_TOOLS array. The [*]+set test is safe under set -u on
+# macOS's bash 3.2, where ${#DOTNET_TOOLS[@]} on an unset array aborts.
+if [[ -z "${DOTNET_TOOLS[*]+set}" ]]; then
     DOTNET_TOOLS=(
         "aspire.cli"
         "coverlet.console"
