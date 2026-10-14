@@ -1,13 +1,6 @@
 # Bedrock/AWS only. Sourced by the claude() wrapper alone (in a subshell or its tmux pane, never an interactive
 # shell); claude-personal strips every name exported here. Provider-neutral flags live elsewhere.
 
-# Clean slate - unset all ANTHROPIC_* vars first
-unset ANTHROPIC_MODEL
-unset ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION
-unset ANTHROPIC_DEFAULT_HAIKU_MODEL
-unset ANTHROPIC_DEFAULT_SONNET_MODEL
-unset ANTHROPIC_DEFAULT_OPUS_MODEL
-
 # Enable Bedrock integration
 export CLAUDE_CODE_USE_BEDROCK=1
 export AWS_REGION=__BEDROCK_REGION__
@@ -15,9 +8,6 @@ export AWS_REGION=__BEDROCK_REGION__
 # AWS profile for Bedrock, for bare subcommands and nested claude calls. The work settings layer
 # (~/.claude/settings.work.json) carries the same value into the Bash tool, past the subprocess scrub.
 export AWS_PROFILE='__BEDROCK_AWS_PROFILE__'
-
-# Override the region for the small/fast model (Haiku)
-export ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION=__BEDROCK_REGION__
 
 # Default model on startup - Choose Sonnet or Opus from your tribe's ARNs
 export ANTHROPIC_MODEL='__BEDROCK_DEFAULT_MODEL_ARN__'

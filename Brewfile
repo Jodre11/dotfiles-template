@@ -69,7 +69,6 @@ brew "kotlin-language-server"
 brew "lua-language-server"
 
 # --- Data and CLI tools ---
-brew "ddgr"                     # DuckDuckGo CLI (used by web-search skill)
 brew "pandoc"                   # Document converter (used by md2clip)
 brew "potrace"
 brew "librsvg"
