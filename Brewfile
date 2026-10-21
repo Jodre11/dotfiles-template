@@ -8,6 +8,7 @@ tap "uw-labs/tap"
 # --- Core tools ---
 brew "aspell"                   # Spell checker (backs Claude Code's spellcheck setting)
 brew "bash"
+brew "blueutil"                 # Bluetooth CLI (the Hammerspoon Karabiner watchdog's BT cycle)
 brew "cmake"
 brew "cmake-docs"
 brew "fd"
