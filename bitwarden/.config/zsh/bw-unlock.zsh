@@ -98,6 +98,33 @@ bw-unlock() {
     return 1
 }
 
+# bw-resync — force the daemon to rebuild its in-memory vault from the cloud.
+# A plain `bw sync` (shell CLI) or the daemon's own POST /sync does NOT refresh
+# bw serve's in-memory cipher list (2026.7.x): POST /sync reports success while
+# /list stays stale. The only reliable refresh is a process restart, which
+# re-pulls from the cloud during unlock. Restart re-locks the vault, so this
+# prompts for the master password (via bw-unlock) exactly once.
+bw-resync() {
+    if ! launchctl list com.user.bw-serve &>/dev/null; then
+        print -u2 "bw-resync: LaunchAgent com.user.bw-serve not loaded."
+        return 1
+    fi
+
+    print "Restarting bw serve to force a fresh cloud pull…"
+    if ! launchctl kickstart -k "gui/$(id -u)/com.user.bw-serve"; then
+        print -u2 "bw-resync: kickstart failed."
+        return 1
+    fi
+
+    # KeepAlive relaunches the daemon; wait for it to rebind before unlocking.
+    for _ in {1..20}; do
+        [[ -n "$(_bw_status)" ]] && break
+        sleep 0.5
+    done
+
+    bw-unlock
+}
+
 if [[ -o interactive ]]; then
     bw-unlock --hook
 fi

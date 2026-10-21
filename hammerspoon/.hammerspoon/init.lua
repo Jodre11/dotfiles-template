@@ -264,6 +264,7 @@ end)
 -- Reset dictation state after sleep/lock (cleans up orphaned recordings)
 function recover(reason)
     log("RECOVER (" .. reason .. ")")
+    stopCaptureWatcher()
     if recording then
         log("RECOVER: recording was stuck, resetting")
         recording = false
@@ -290,56 +291,118 @@ end)
 wakeWatcher:start()
 
 -- Karabiner BLE grab watchdog
--- Detects when Pro Type Ultra reconnects without being grabbed and restarts Karabiner
+-- A Bluetooth keyboard occasionally fails to be grabbed after a cold start: macOS presents
+-- the HID interfaces in a state Karabiner cannot exclusive-grab. Restarting Karabiner does
+-- NOT recover this; only re-enumerating the device does. The watchdog toggles the BT
+-- connection via blueutil; if two attempts fail it posts a notification prompting the user
+-- to power-cycle the keyboard manually.
 local KARABINER_LOG = "/var/log/karabiner/core_service.log"
 local GRAB_DEVICE = "Pro Type Ultra"
-local karabinerNeedsGrab = false
+-- Set to the keyboard's Bluetooth address (`blueutil --paired`), e.g. "aa-bb-cc-dd-ee-ff".
+-- Left empty, the watchdog skips the BT cycle and goes straight to the notification.
+local GRAB_DEVICE_BT_ADDR = ""
+local BLUEUTIL = "/opt/homebrew/bin/blueutil"
+local MAX_AUTO_RECOVERIES = 2
+local karabinerRecoveryInProgress = false
+local karabinerRecoveryAttempts = 0
+local karabinerNotifiedManual = false
 local karabinerGrabTimer = nil
 
+local function notifyManualRecovery()
+    if karabinerNotifiedManual then return end
+    karabinerNotifiedManual = true
+    hs.notify.new({
+        title = "Push-to-talk dictation broken",
+        informativeText = "Karabiner cannot grab " .. GRAB_DEVICE .. ". Power-cycle the keyboard.",
+        withdrawAfter = 0  -- sticky until dismissed
+    }):send()
+end
+
+local function recoverKarabinerGrab()
+    karabinerRecoveryAttempts = karabinerRecoveryAttempts + 1
+    log(string.format("KARABINER WATCHDOG: %s not grabbed, BT cycle attempt %d/%d",
+        GRAB_DEVICE, karabinerRecoveryAttempts, MAX_AUTO_RECOVERIES))
+    hs.task.new(BLUEUTIL, function(disconnectExit)
+        if disconnectExit ~= 0 then
+            log("KARABINER WATCHDOG: blueutil --disconnect failed exit=" .. tostring(disconnectExit))
+            karabinerRecoveryInProgress = false
+            return
+        end
+        -- Give the BT stack a moment before reconnecting
+        hs.timer.doAfter(2, function()
+            hs.task.new(BLUEUTIL, function(connectExit)
+                if connectExit ~= 0 then
+                    log("KARABINER WATCHDOG: blueutil --connect failed exit=" .. tostring(connectExit))
+                end
+                -- Allow Karabiner ~5s to grab the freshly reconnected device before the next poll
+                hs.timer.doAfter(5, function()
+                    karabinerRecoveryInProgress = false
+                end)
+            end, { "--connect", GRAB_DEVICE_BT_ADDR }):start()
+        end)
+    end, { "--disconnect", GRAB_DEVICE_BT_ADDR }):start()
+end
+
 local function checkKarabinerGrab()
-    -- Read last 50 lines of the Karabiner log
+    if karabinerRecoveryInProgress then return end
+
+    -- 500 lines covers the full login boot sequence; 50 was too small and let the
+    -- "caps lock is found" signal scroll off before we could react.
     local task = hs.task.new("/usr/bin/tail", function(exitCode, stdOut, stdErr)
         if exitCode ~= 0 or not stdOut then return end
 
-        -- Only consider lines after the last Karabiner restart
+        -- Anchor on the most recent of (a) Karabiner reload or (b) device termination.
+        -- A BT cycle produces a "terminated" line; the device's subsequent reconnect is
+        -- what we want to evaluate, ignoring any stale "caps lock is found" entries from
+        -- before the cycle.
         local lines = {}
-        local lastLoadIdx = 0
+        local anchorIdx = 0
         local idx = 0
         for line in stdOut:gmatch("[^\n]+") do
             idx = idx + 1
             lines[idx] = line
             if line:find("core_configuration is updated", 1, true) then
-                lastLoadIdx = idx
+                anchorIdx = idx
+            elseif line:find(GRAB_DEVICE, 1, true) and line:find("terminated", 1, true) then
+                anchorIdx = idx
             end
         end
 
-        -- Check entries since last restart for the device
-        local seen = false
-        local grabbed = false
-        for i = lastLoadIdx, idx do
+        local seenCount = 0
+        local grabbedCount = 0
+        for i = anchorIdx, idx do
             local line = lines[i]
             if line and line:find(GRAB_DEVICE, 1, true) then
                 if line:find("caps lock is found", 1, true) then
-                    seen = true
-                end
-                if line:find("grabbed", 1, true) then
-                    grabbed = true
+                    seenCount = seenCount + 1
+                elseif line:find("grabbed", 1, true) then
+                    grabbedCount = grabbedCount + 1
                 end
             end
         end
 
-        if seen and not grabbed then
-            if not karabinerNeedsGrab then
-                karabinerNeedsGrab = true
-                log("KARABINER WATCHDOG: " .. GRAB_DEVICE .. " not grabbed, restarting Karabiner")
-                hs.task.new("/usr/bin/killall", function()
-                    karabinerNeedsGrab = false
-                end, { "karabiner_console_user_server" }):start()
-            end
-        else
-            karabinerNeedsGrab = false
+        if seenCount == 0 then
+            -- Device not present since anchor — nothing to evaluate.
+            return
         end
-    end, { "-50", KARABINER_LOG })
+
+        if seenCount <= grabbedCount then
+            -- Healthy: every detected interface was grabbed. Clear recovery state.
+            if karabinerRecoveryAttempts > 0 or karabinerNotifiedManual then
+                log("KARABINER WATCHDOG: " .. GRAB_DEVICE .. " is grabbed, clearing recovery state")
+            end
+            karabinerRecoveryAttempts = 0
+            karabinerNotifiedManual = false
+        else
+            -- Stuck: device seen but not (all) grabbed
+            if GRAB_DEVICE_BT_ADDR == "" or karabinerRecoveryAttempts >= MAX_AUTO_RECOVERIES then
+                notifyManualRecovery()
+            else
+                karabinerRecoveryInProgress = true
+                recoverKarabinerGrab()
+            end
+        end
+    end, { "-500", KARABINER_LOG })
     task:start()
 end
 

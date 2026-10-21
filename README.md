@@ -18,7 +18,7 @@ strategy for keeping sensitive values out of version control.
 | `gh` | GitHub CLI config |
 | `ghostty` | Ghostty terminal config |
 | `git` | Git config with delta, strongbox, SSH signing (template) |
-| `hammerspoon` | Push-to-talk dictation, Karabiner BLE watchdog, middle-click paste |
+| `hammerspoon` | Push-to-talk dictation, Karabiner BLE watchdog (set `GRAB_DEVICE` and `GRAB_DEVICE_BT_ADDR` in `init.lua` for your keyboard), middle-click paste |
 | `homebrew` | Homebrew update check LaunchAgent |
 | `karabiner` | Karabiner-Elements key remapping |
 | `mcp` | MCP server config for Claude Code (template) |
