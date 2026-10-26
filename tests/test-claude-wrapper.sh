@@ -40,6 +40,8 @@ case "$1" in
     new-session)
         shift 3
         printf '%s' "$#" > "$WRAPPER_TEST_OUT/tmux-argc"
+        # A tmux server can start a pane in its own start directory rather than the caller's.
+        cd /
         exec zsh -f -c "$1"
         ;;
 esac
@@ -50,6 +52,7 @@ EOF
 cat > "$tmp/bin/claude" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$@" > "$WRAPPER_TEST_OUT/claude-argv"
+pwd -P > "$WRAPPER_TEST_OUT/claude-cwd"
 for name in CLAUDE_CODE_USE_BEDROCK AWS_REGION ANTHROPIC_MODEL AWS_PROFILE TEST_NUGET_PAT INDENTED_VAR \
     CLAUDE_CODE_NO_FLICKER; do
     printf '%s=%s\n' "$name" "${!name-<unset>}"
@@ -68,9 +71,16 @@ printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" > "$WRAPPER_TEST_OUT/sleep-arg
 printf '#!/usr/bin/env bash\necho c-test-0000\n' > "$home/.claude/scripts/derive-claude-slug.sh"
 chmod +x "$tmp/bin/"* "$home/.claude/scripts/derive-claude-slug.sh"
 
+# Every wrapper runs from a caller directory holding a space; a pane must start there, not where tmux put it.
+caller="$tmp/work dir"
+mkdir -p "$caller"
+cd "$caller"
+caller_physical=$(pwd -P)
+
 # Extract the wrappers, and the NuGet PAT export block once with a configured namespace and once with none.
 awk '/^claude-arg-mode\(\) \{$/,/^}$/; /^claude-work-vars\(\) \{$/,/^}$/;
-    /^claude-launch-env\(\) \{$/,/^}$/; /^claude\(\) \{$/,/^}$/; /^claude-personal\(\) \{$/,/^}$/' \
+    /^claude-launch-env\(\) \{$/,/^}$/; /^claude-pane-cd\(\) \{$/,/^}$/;
+    /^claude\(\) \{$/,/^}$/; /^claude-personal\(\) \{$/,/^}$/' \
     "$repo_root/zsh/.zshrc.tmpl" > "$tmp/wrappers.zsh"
 pat_block=$(awk '/^if \[\[ -n "__NUGET_NAMESPACE__" \]\]; then$/,/^fi$/' "$repo_root/zsh/.zshrc.tmpl")
 printf '%s\n' "${pat_block//__NUGET_NAMESPACE__/testns}" > "$tmp/pat.zsh"
@@ -267,6 +277,22 @@ check "claude, tmux: the parent shell is untouched" "<unset>" "$(result parent-m
 check "claude, tmux: no envchain call" "<missing>" "$(result envchain-calls)"
 check "claude, tmux: the shell's NuGet PAT reaches claude" "hand-set" "$(envval TEST_NUGET_PAT)"
 check "claude, tmux: the launch line carries the inline flags" "1" "$(envval CLAUDE_CODE_NO_FLICKER)"
+check "claude, tmux: the pane starts in the caller's directory" "$caller_physical" "$(result claude-cwd)"
+
+run_wrapper fallback-arn claude-personal --resume abc
+check "claude-personal, tmux: the pane starts in the caller's directory" "$caller_physical" "$(result claude-cwd)"
+
+# A caller whose directory was deleted is refused before tmux starts.
+mkdir "$tmp/gone"
+cd "$tmp/gone"
+rmdir "$tmp/gone"
+for wrapper in claude claude-personal; do
+    run_wrapper fallback-arn "$wrapper" --resume abc
+    check "$wrapper, deleted caller directory: refuses before tmux" "<missing> <missing> 1" \
+        "$(result tmux-argc) $(result claude-argv) $(result rc)"
+    check "$wrapper, deleted caller directory: says why" "1" "$(grep -c 'no longer exists' "$tmp/out/stderr" || true)"
+done
+cd "$caller"
 
 run_wrapper fallback-arn claude -p "say ok"
 check "claude -p: the work layer and the fallback from ~/.claudeenv" "$work_direct"$'\n'-p$'\n'"say ok" \

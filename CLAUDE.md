@@ -72,6 +72,8 @@ side by side" describes them for users. When editing them, keep these true:
 - Both run plain `command claude` when `CLAUDECODE` is set: Claude Code's shell snapshot carries the functions into
   its Bash tool, where the session's own environment decides.
 - Flags Claude Code reads before settings load go in `claude-launch-env`, which both share.
+- A tmux pane changes into the caller's directory itself (`claude-pane-cd`), since tmux can start it in the server's
+  own, possibly deleted, start directory; a caller whose directory no longer exists is refused before tmux runs.
 - A caller's `--settings` replaces the wrapper's (Claude Code keeps the last); the README documents the workaround.
 - A `~/.claude` script the wrappers call is a cross-repo dependency: name it in the README.
 
