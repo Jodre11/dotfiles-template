@@ -40,8 +40,12 @@ bindkey '\e[27;5;13~'  accept-line          # Ctrl+Enter   → submit
 bindkey '\e[27;2;127~' backward-delete-char # Shift+Backspace
 bindkey '\e[27;5;127~' backward-delete-char # Ctrl+Backspace
 
-# Bitwarden SSH agent (desktop app must be running and unlocked)
-export SSH_AUTH_SOCK="__SSH_AGENT_SOCK__"
+# Bitwarden SSH agent (desktop app must be running and unlocked). Kept out of Claude Code's environment: not exported
+# into its shell snapshot, and stripped from the launch by claude-launch-env. ssh needs no SSH_AUTH_SOCK there, since
+# ~/.ssh/config names the socket (IdentityAgent), and git's ssh-sign reads it from that.
+if [[ -z $CLAUDECODE ]]; then
+    export SSH_AUTH_SOCK="__SSH_AGENT_SOCK__"
+fi
 
 # Bitwarden CLI serve daemon (LaunchAgent-managed; see bitwarden package)
 export BW_SERVE_URL="http://localhost:8087"
@@ -107,10 +111,11 @@ claude-work-vars() {
     reply=("${(@u)reply}")
 }
 
-# Set reply to the provider-neutral flags Claude Code reads before settings load; both wrappers put them on the
-# launch line.
+# Set reply to the env arguments for the launch line both wrappers build: SSH_AUTH_SOCK unset (see its export above),
+# then the provider-neutral flags Claude Code reads before settings load.
 claude-launch-env() {
     reply=(
+        -u SSH_AUTH_SOCK
         CLAUDE_CODE_NO_FLICKER=1
         CLAUDE_CODE_WORKFLOWS=1
     )
