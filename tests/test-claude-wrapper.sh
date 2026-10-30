@@ -54,7 +54,7 @@ cat > "$tmp/bin/claude" <<'EOF'
 printf '%s\n' "$@" > "$WRAPPER_TEST_OUT/claude-argv"
 pwd -P > "$WRAPPER_TEST_OUT/claude-cwd"
 for name in CLAUDE_CODE_USE_BEDROCK AWS_REGION ANTHROPIC_MODEL AWS_PROFILE TEST_NUGET_PAT INDENTED_VAR \
-    CLAUDE_CODE_NO_FLICKER; do
+    CLAUDE_CODE_NO_FLICKER SSH_AUTH_SOCK; do
     printf '%s=%s\n' "$name" "${!name-<unset>}"
 done > "$WRAPPER_TEST_OUT/claude-env"
 EOF
@@ -116,7 +116,7 @@ run_wrapper() {
     write_claudeenv "$fallback"
     # shellcheck disable=SC2016 # $1, $@ and $? expand in the zsh child
     env -i HOME="$home" PATH="$tmp/bin:$PATH" WRAPPER_TEST_OUT="$tmp/out" CLAUDE_CODE_USE_BEDROCK=1 \
-        AWS_PROFILE=hand-set TEST_NUGET_PAT=hand-set \
+        AWS_PROFILE=hand-set TEST_NUGET_PAT=hand-set SSH_AUTH_SOCK=/agent.sock \
         ${extra_env[@]+"${extra_env[@]}"} \
         zsh -f -c 'source "$1"; shift; "$@"; print -rn -- $? > "$WRAPPER_TEST_OUT/rc"
             print -rn -- "${ANTHROPIC_MODEL-<unset>}" > "$WRAPPER_TEST_OUT/parent-model"' \
@@ -244,11 +244,13 @@ run_wrapper fallback-arn claude-personal --resume abc
 check "claude-personal, tmux: the pane strips every work variable the parent still holds" "" "$(personal_stripped)"
 check "claude-personal, tmux: a hand-set NuGet PAT reaches claude" "hand-set" "$(envval TEST_NUGET_PAT)"
 check "claude-personal, tmux: the launch line carries the inline flags" "1" "$(envval CLAUDE_CODE_NO_FLICKER)"
+check "claude-personal, tmux: the agent socket is stripped" "<unset>" "$(envval SSH_AUTH_SOCK)"
 
 run_wrapper fallback-arn claude-personal -p "say ok"
 check "claude-personal -p: every work variable stripped" "" "$(personal_stripped)"
 check "claude-personal -p: a hand-set NuGet PAT reaches claude" "hand-set" "$(envval TEST_NUGET_PAT)"
 check "claude-personal -p: the launch line carries the inline flags" "1" "$(envval CLAUDE_CODE_NO_FLICKER)"
+check "claude-personal -p: the agent socket is stripped" "<unset>" "$(envval SSH_AUTH_SOCK)"
 
 run_wrapper fallback-arn claude-personal mcp list
 check "claude-personal mcp list: every work variable stripped" "" "$(personal_stripped)"
@@ -277,6 +279,7 @@ check "claude, tmux: the parent shell is untouched" "<unset>" "$(result parent-m
 check "claude, tmux: no envchain call" "<missing>" "$(result envchain-calls)"
 check "claude, tmux: the shell's NuGet PAT reaches claude" "hand-set" "$(envval TEST_NUGET_PAT)"
 check "claude, tmux: the launch line carries the inline flags" "1" "$(envval CLAUDE_CODE_NO_FLICKER)"
+check "claude, tmux: the agent socket is stripped" "<unset>" "$(envval SSH_AUTH_SOCK)"
 check "claude, tmux: the pane starts in the caller's directory" "$caller_physical" "$(result claude-cwd)"
 
 run_wrapper fallback-arn claude-personal --resume abc
@@ -300,6 +303,7 @@ check "claude -p: the work layer and the fallback from ~/.claudeenv" "$work_dire
 check "claude -p: ~/.claudeenv is sourced for the call only" "fixture-model <unset>" \
     "$(envval ANTHROPIC_MODEL) $(result parent-model)"
 check "claude -p: no envchain call" "<missing>" "$(result envchain-calls)"
+check "claude -p: the agent socket is stripped" "<unset>" "$(envval SSH_AUTH_SOCK)"
 check "claude -p: the shell's NuGet PAT reaches claude" "hand-set" "$(envval TEST_NUGET_PAT)"
 
 run_wrapper fallback-arn claude auth status

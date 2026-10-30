@@ -71,7 +71,8 @@ side by side" describes them for users. When editing them, keep these true:
   server's environment rather than the shell's.
 - Both run plain `command claude` when `CLAUDECODE` is set: Claude Code's shell snapshot carries the functions into
   its Bash tool, where the session's own environment decides.
-- Flags Claude Code reads before settings load go in `claude-launch-env`, which both share.
+- Flags Claude Code reads before settings load go in `claude-launch-env`, which both share, with `-u SSH_AUTH_SOCK`
+  first: the agent socket stays out of Claude Code (ssh finds it through `IdentityAgent`).
 - A tmux pane changes into the caller's directory itself (`claude-pane-cd`), since tmux can start it in the server's
   own, possibly deleted, start directory; a caller whose directory no longer exists is refused before tmux runs.
 - A caller's `--settings` replaces the wrapper's (Claude Code keeps the last); the README documents the workaround.
@@ -83,7 +84,8 @@ SSH keys are stored in the Bitwarden vault and served via the Bitwarden SSH
 agent. There are no private key files on disk.
 
 - **macOS/Linux**: `.zshrc` sets `SSH_AUTH_SOCK` to the agent socket path
-  configured in `config.env`
+  configured in `config.env` (not inside Claude Code), and `~/.ssh/config` names
+  the same socket as every host's `IdentityAgent`
 - `.gitconfig` uses an inline public key for commit signing. The Bitwarden
   desktop app must be running and unlocked for SSH operations to work.
 
