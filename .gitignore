@@ -41,3 +41,6 @@ bitwarden/Library/LaunchAgents/com.user.bw-serve.plist
 
 # Firefox bookmark backups (generated at runtime)
 firefox/.config/firefox/backups/
+
+# Claude Code personal settings
+**/.claude/settings.local.json
