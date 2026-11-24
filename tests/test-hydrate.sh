@@ -62,7 +62,7 @@ check_same() {
 new_fixture() {
     local d acct
     d=$(mktemp -d "$tmp/fx.XXXXXX")
-    mkdir -p "$d/zsh" "$d/git" "$d/scripts" "$d/aws/.aws"
+    mkdir -p "$d/zsh" "$d/git" "$d/scripts" "$d/aws/.aws" "$d/home"
     cp "$repo_root/hydrate.sh" "$d/hydrate.sh"
     acct=$(printf '%012d' 42)
     printf '%s\n' 'GIT_USER_NAME="Fixture User"' 'DATADOG_SITE="datadoghq.example"' \
@@ -77,20 +77,20 @@ new_fixture() {
 }
 
 # run_hydrate <dir> <flag>: run <dir>'s hydrate.sh with <flag>, or with no argument when <flag> is empty; set rc and
-# out.
+# out. HOME is <dir>/home, so the AWS config never reaches the real ~/.aws.
 run_hydrate() {
     rc=0
     if [[ -n "$2" ]]; then
-        out=$("$BASH" "$1/hydrate.sh" "$2" 2>&1) || rc=$?
+        out=$(HOME="$1/home" "$BASH" "$1/hydrate.sh" "$2" 2>&1) || rc=$?
     else
-        out=$("$BASH" "$1/hydrate.sh" 2>&1) || rc=$?
+        out=$(HOME="$1/home" "$BASH" "$1/hydrate.sh" 2>&1) || rc=$?
     fi
 }
 
 # run_hydrate_path <dir> <bin-dir>: run <dir>'s hydrate.sh with <bin-dir> first on PATH; set rc and out.
 run_hydrate_path() {
     rc=0
-    out=$(PATH="$2:$PATH" "$BASH" "$1/hydrate.sh" 2>&1) || rc=$?
+    out=$(HOME="$1/home" PATH="$2:$PATH" "$BASH" "$1/hydrate.sh" 2>&1) || rc=$?
 }
 
 # stub_failing <dir> <command>: write a stub <command> that always fails into <dir>/bin; print that directory.
@@ -134,7 +134,7 @@ check "a bare run writes the hydrated content" "name=Fixture User" "$(cat "$d/zs
 run_hydrate "$d" ""
 check_match "a second run reports .zshrc UNCHANGED" "UNCHANGED $d/zsh/.zshrc" "$out"
 check_match "a second run reports the AWS config UNCHANGED, though its content ends in a blank line" \
-    "UNCHANGED $d/aws/.aws/config" "$out"
+    "UNCHANGED $d/home/.aws/config" "$out"
 check_no_match "a second run writes nothing" '  OK ' "$out"
 
 # --- a rewritten output keeps its mode, so a launched script stays executable
@@ -164,7 +164,7 @@ printf 'name=__GIT_USER_NAME__%s\n' "$(printf 'x%.0s' {1..6000})" >"$d/zsh/.zshr
 printf '%s\n' 'name=stale' >"$d/zsh/.zshrc"
 cp "$d/zsh/.zshrc" "$tmp/zshrc.before"
 rc=0
-out=$(trap '' XFSZ; ulimit -f 2; "$BASH" "$d/hydrate.sh" 2>&1) || rc=$?
+out=$(trap '' XFSZ; ulimit -f 2; HOME="$d/home" "$BASH" "$d/hydrate.sh" 2>&1) || rc=$?
 check "a write that fills the disk exits 1" 1 "$rc"
 check_no_match "a write that fills the disk prints no OK" "OK $d/zsh/.zshrc" "$out"
 check_same "a write that fills the disk leaves the output as it was" "$d/zsh/.zshrc" "$tmp/zshrc.before"
@@ -238,6 +238,56 @@ if [[ -x "$d/git/.gitconfig" ]]; then
 else
     check "a new output from a plain template is not executable" "no" "no"
 fi
+
+# --- the AWS config is written to ~/.aws as a regular file, never into the repo
+d=$(new_fixture)
+run_hydrate "$d" ""
+check "the AWS config run exits 0" 0 "$rc"
+check_match "the AWS config lands in ~/.aws" "OK $d/home/.aws/config" "$out"
+if [[ -f "$d/home/.aws/config" && ! -L "$d/home/.aws/config" ]]; then
+    check "the AWS config is a regular file" "yes" "yes"
+else
+    check "the AWS config is a regular file" "yes" "no"
+fi
+check_match "the AWS config carries the hydrated profile" '\[profile dev\]' "$(cat "$d/home/.aws/config")"
+if [[ -e "$d/aws/.aws/config" ]]; then
+    check "no AWS config is written into the repo" "absent" "present"
+else
+    check "no AWS config is written into the repo" "absent" "absent"
+fi
+
+# --- a stow link from before is reported by --diff and replaced by a write, its target untouched
+d=$(new_fixture)
+printf '%s\n' 'old=stowed' >"$d/aws/.aws/config"
+cp "$d/aws/.aws/config" "$tmp/legacy.before"
+mkdir -p "$d/home/.aws"
+ln -s "$d/aws/.aws/config" "$d/home/.aws/config"
+run_hydrate "$d" --diff
+check "--diff on the stow link exits 0" 0 "$rc"
+check_match "--diff reports the stow link" "REPLACE $d/home/.aws/config" "$out"
+if [[ -L "$d/home/.aws/config" ]]; then
+    check "--diff leaves the stow link in place" "yes" "yes"
+else
+    check "--diff leaves the stow link in place" "yes" "no"
+fi
+run_hydrate "$d" ""
+check "replacing the stow link exits 0" 0 "$rc"
+if [[ -f "$d/home/.aws/config" && ! -L "$d/home/.aws/config" ]]; then
+    check "the stow link becomes a regular file" "yes" "yes"
+else
+    check "the stow link becomes a regular file" "yes" "no"
+fi
+check_match "the replaced file carries the hydrated profile" '\[profile dev\]' "$(cat "$d/home/.aws/config")"
+check_same "the stow link's target is unchanged" "$d/aws/.aws/config" "$tmp/legacy.before"
+
+# --- any other symlink at ~/.aws/config is refused
+d=$(new_fixture)
+mkdir -p "$d/home/.aws"
+printf '%s\n' 'other=link' >"$d/home/elsewhere"
+ln -s "$d/home/elsewhere" "$d/home/.aws/config"
+run_hydrate "$d" ""
+check "an unrelated symlink at ~/.aws/config exits 1" 1 "$rc"
+check_match "an unrelated symlink at ~/.aws/config prints FAIL" "FAIL $d/home/.aws/config" "$out"
 
 # --- the Bedrock AWS profile and the default region are substituted
 d=$(new_fixture)

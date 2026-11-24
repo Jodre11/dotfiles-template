@@ -156,9 +156,12 @@ hydrate_simple() {
 }
 
 # --- AWS config: dynamic profile generation ---
+# Written straight to ~/.aws/config as a regular file, not stowed: `claude plugin eval` refuses any Bash-granting run
+# while a symlink sits inside the AWS credential store. A stow link left from before is replaced on write.
 hydrate_aws_config() {
     local tmpl="$SCRIPT_DIR/aws/.aws/config.tmpl"
-    local output="$SCRIPT_DIR/aws/.aws/config"
+    local output="$HOME/.aws/config"
+    local legacy="$SCRIPT_DIR/aws/.aws/config"
 
     if [[ ! -f "$tmpl" ]]; then
         echo "  SKIP $tmpl (not found)"
@@ -190,6 +193,18 @@ hydrate_aws_config() {
         done
     fi
 
+    # The rename in write_output replaces the link itself, never its target.
+    if [[ -L "$output" && "$output" -ef "$legacy" ]]; then
+        echo "  REPLACE $output (a stow link from before; a write makes it a regular file)"
+        if [[ "$MODE" == "write" ]]; then
+            write_output "$output" "$content"
+            echo "  OK $output"
+        fi
+        return
+    fi
+    if [[ "$MODE" == "write" ]]; then
+        mkdir -p -- "$HOME/.aws"
+    fi
     preview_and_write "$output" "$content" || true
 }
 

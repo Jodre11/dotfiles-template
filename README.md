@@ -10,7 +10,7 @@ strategy for keeping sensitive values out of version control.
 
 | Package | Contents |
 |---|---|
-| `aws` | AWS CLI SSO profiles (template) |
+| `aws` | AWS CLI SSO profiles (template); written to `~/.aws/config` by `hydrate.sh`, not stowed |
 | `chrome` | Chrome dev/Playwright hardening script |
 | `docker` | Docker Desktop config (template) + daemon settings |
 | `editorconfig` | Cross-IDE formatting rules |
