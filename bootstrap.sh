@@ -78,8 +78,9 @@ if [[ -f "$DOTFILES_DIR/hydrate.sh" ]]; then
 fi
 
 # ---------- Stow packages ----------
+# aws is not stowed: hydrate.sh writes ~/.aws/config itself as a regular file.
 echo "Linking dotfiles..."
-PACKAGES=(zsh starship git tmux ghostty hammerspoon gh karabiner editorconfig ssh vscode mcp firefox homebrew aws bitwarden)
+PACKAGES=(zsh starship git tmux ghostty hammerspoon gh karabiner editorconfig ssh vscode mcp firefox homebrew bitwarden)
 for pkg in "${PACKAGES[@]}"; do
     stow -v -t "$HOME" -d "$DOTFILES_DIR" "$pkg"
 done

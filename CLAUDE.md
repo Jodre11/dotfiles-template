@@ -46,6 +46,12 @@ The `docker` package is **copied** by `bootstrap.sh`, not stowed. Docker Desktop
   `config.json.tmpl`, which pins `"auths": {}`. Committing the live file would
   push values `.githooks/pre-commit` screens for. A permanent diff is correct.
 
+## AWS Config (Not Stowed)
+
+`hydrate.sh` writes `~/.aws/config` directly as a regular file from `aws/.aws/config.tmpl`; the `aws` package is
+not stowed. `claude plugin eval` refuses any run that grants Bash while a symlink sits inside the AWS credential
+store. A stow link left from before is replaced by the next hydrate.
+
 ## Template Strategy
 
 Files with sensitive content use `.tmpl` extensions with `__PLACEHOLDER__` tokens.
